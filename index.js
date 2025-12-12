@@ -476,7 +476,8 @@ const finalSuperUsers = Array.from(superUserSet);
 const isSuperUser = finalSuperUsers.includes(sender);
                             
 
-    if (autoBlock && sender && !isSuperUser && !isGroup) {
+
+if (autoBlock && sender && !isSuperUser && !isGroup) {
     const countryCodes = autoBlock.split(',').map(code => code.trim());
     if (countryCodes.some(code => sender.startsWith(code))) {
         try {
@@ -491,6 +492,7 @@ const isSuperUser = finalSuperUsers.includes(sender);
         }
     }
 }
+            
             if (autoRead === "true") await Gifted.readMessages([ms.key]);
             if (autoRead === "commands" && isCommand) await Gifted.readMessages([ms.key]);
             
@@ -594,12 +596,12 @@ const isSuperUser = finalSuperUsers.includes(sender);
                         Gifted.getJidFromLid = async (lid) => {
     const groupMetadata = await Gifted.groupMetadata(from);
     const match = groupMetadata.participants.find(p => p.lid === lid || p.id === lid);
-    return match?.pn || null;
+    return match?.pn || match?.phoneNumber || null;
 };
 
 Gifted.getLidFromJid = async (jid) => {
     const groupMetadata = await Gifted.groupMetadata(from);
-    const match = groupMetadata.participants.find(p => p.jid === jid || p.id === jid);
+    const match = groupMetadata.participants.find(p => p.jid === jid || p.pn === jid || p.poneNumber === jid || p.id === jid);
     return match?.lid || null;
 };
                            
