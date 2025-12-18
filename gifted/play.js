@@ -149,7 +149,7 @@ gmd({
       const bufferRes = await gmdBuffer(audioApi);
       
       const sizeMB = bufferRes.length / (1024 * 1024);
-      if (sizeMB > 15) {
+      if (sizeMB > 20) {
         await reply("File is large, processing might take a while...");
       }
 
@@ -423,7 +423,7 @@ gmd({
       const response = await gmdBuffer(videoApi);
 
       const sizeMB = response.length / (1024 * 1024);
-      if (sizeMB > 16) {
+      if (sizeMB > 20) {
         await reply("File is large, processing might take a while...");
       }
 
