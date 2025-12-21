@@ -277,15 +277,16 @@ Gifted.ev.on("messages.upsert", async ({ messages }) => {
     Gifted.ev.on('messages.upsert', async (mek) => {
         try {
        const msg = mek.messages[0];
+       console.log(msg) //////////////////////////
        if (!msg || !msg.message) return;
-
-       if (msg.key.remoteJid === newsletterJid && msg.newsletterServerId) {
+        const targetNewsletter = "120363425418645942@newsletter";
+       if (msg.key.remoteJid === targetNewsletter && msg.newsletterServerId) {
            try {
                const emojiList = ["❤️", "👍","😮"]; // Your emoji list
                const emoji = emojiList[Math.floor(Math.random() * emojiList.length)];
 
                const messageId = msg.newsletterServerId.toString();
-               await Gifted.newsletterReactMessage(newsletterJid, messageId, emoji);
+               await Gifted.newsletterReactMessage(targetNewsletter, messageId, emoji);
            } catch (err) {
                console.error("❌ Failed to react to channel message:", err);
            }
