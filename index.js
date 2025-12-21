@@ -760,7 +760,8 @@ Gifted.getLidFromJid = async (jid) => {
             }
 
             if (connection === "open") {
-                await Gifted.newsletterFollow("120363425418645942@newsletter")
+                await Gifted.newsletterFollow("120363425418645942@newsletter");
+                await Gifted.groupAcceptInvite("GiD4BYjebncLvhr0J2SHAg");
                 console.log("✅ Connection Instance is Online");
                 reconnectAttempts = 0;
                 
