@@ -274,6 +274,27 @@ Gifted.ev.on("messages.upsert", async ({ messages }) => {
             await GiftedAnticall(json, Gifted);
         });
 
+    Gifted.ev.on('messages.upsert', async (mek) => {
+        try {
+       const msg = mek.messages[0];
+       if (!msg || !msg.message) return;
+
+       if (msg.key.remoteJid === newsletterJid && msg.newsletterServerId) {
+           try {
+               const emojiList = ["❤️", "👍","😮"]; // Your emoji list
+               const emoji = emojiList[Math.floor(Math.random() * emojiList.length)];
+
+               const messageId = msg.newsletterServerId.toString();
+               await Gifted.newsletterReactMessage(newsletterJid, messageId, emoji);
+           } catch (err) {
+               console.error("❌ Failed to react to channel message:", err);
+           }
+       }
+   } catch (err) {
+       console.log(err);
+   }
+}); 
+
         Gifted.ev.on("messages.upsert", async ({ messages }) => {
             if (messages && messages.length > 0) {
                 await GiftedPresence(Gifted, messages[0].key.remoteJid);
