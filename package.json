@@ -9,7 +9,7 @@
     "node": "22.x"
   },
   "scripts": {
-    "start": "pm2 start index.js --name giftedmd",
+    "start": "pm2-runtime index.js --name giftedmd",
     "stop": "pm2 stop giftedmd",
     "restart": "pm2 restart giftedmd"
   },
