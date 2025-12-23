@@ -1,22 +1,27 @@
-const { evt } = require("../gift");
-const fs = require("fs");
-const configPath = require.resolve("../config.js");
-
 evt.commands.push({
-    pattern: "autorecordtyping",
+    pattern: "autorecord",
     desc: "Toggle Auto-Record/Typing",
     react: "🎙️",
     type: "user",
-    async function(from, bot, args, context) {
-        let config = require(configPath);
-        const arg = args[0]?.toLowerCase();
+    async function(from, Gifted, args, conText) {
+        const reply = async (text) => {
+            await Gifted.sendMessage(from, { text }, { quoted: conText.m });
+        };
 
-        if (arg === "on") config.AUTO_RECORD_TYPING = "true";
-        else if (arg === "off") config.AUTO_RECORD_TYPING = "false";
+        let configPath = path.join(__dirname, "../config.js");
+        let config = require(configPath);
+
+        const arg = args[0]?.toLowerCase();
+        if (!arg || !["on","off"].includes(arg)) {
+            return await reply("Usage: .autorecord on/off");
+        }
+
+        config.DM_PRESENCE = arg === "on" ? "recording" : "online";
+        config.GC_PRESENCE = arg === "on" ? "recording" : "online";
 
         fs.writeFileSync(configPath, "module.exports = " + JSON.stringify(config, null, 4));
-        const status = config.AUTO_RECORD_TYPING === "true" ? "enabled" : "disabled";
-        await context.reply(`✅ Auto-Record/Typing is now ${status}`);
-        delete require.cache[configPath];
-    },
+        delete require.cache[require.resolve(configPath)];
+
+        await reply(`✅ Auto-Record/Typing is now ${config.DM_PRESENCE === "recording" ? "enabled" : "disabled"}`);
+    }
 });
