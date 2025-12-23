@@ -795,16 +795,20 @@ Gifted.getLidFromJid = async (jid) => {
                         if (startMess === 'true') {
                             const md = botMode === 'public' ? "public" : "private";
                             const connectionMsg = `
-*${botName} 𝐂𝐎𝐍𝐍𝐄𝐂𝐓𝐄𝐃*
+*╔═══════════════╗*
+*║  ${botName} CONNECTED  ║*
+*╚═══════════════╝*
 
-𝐏𝐫𝐞𝐟𝐢𝐱       : *[ ${botPrefix} ]*
-𝐏𝐥𝐮𝐠𝐢𝐧𝐬      : *${totalCommands.toString()}*
-𝐌𝐨𝐝𝐞        : *${md}*
-𝐎𝐰𝐧𝐞𝐫       : *${ownerNumber}*
-𝐓𝐮𝐭𝐨𝐫𝐢𝐚𝐥𝐬     : *${config.YT}*
-𝐔𝐩𝐝𝐚𝐭𝐞𝐬      : *${newsletterUrl}*
+╭─❏ BOT INFORMATION ❏─╮
+│ 🔹 Prefix      : ${botPrefix}
+│ 🔹 Plugins     : ${totalCommands}
+│ 🔹 Mode        : ${md}
+│ 🔹 Owner       : ${ownerNumber}
+│ 🔹 Tutorials   : ${config.YT}
+│ 🔹 Updates     : ${newsletterUrl}
+╰────────────────────╯
 
-> *${botCaption}*`;
+> ${botCaption}
 
                             await Gifted.sendMessage(
                                 Gifted.user.id,
