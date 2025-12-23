@@ -1,29 +1,30 @@
-const { evt } = require("../gift");
+const evt = require("../gift"); // Make sure this points to your evt/command handler
 const fs = require("fs");
-const configPath = require.resolve("../config.js");
+const path = require("path");
 
 evt.commands.push({
     pattern: "autobio",
     desc: "Toggle Auto-Bio",
     react: "📝",
     type: "user",
-    async function(from, bot, args, context) {
-        let config = require(configPath);
-        const arg = args[0]?.toLowerCase();
+    async function(from, Gifted, args, conText) {
+        const reply = async (text) => {
+            await Gifted.sendMessage(from, { text }, { quoted: conText.m });
+        };
 
-        if (arg === "on") {
-            config.AUTO_BIO = "true";
-            fs.writeFileSync(configPath, "module.exports = " + JSON.stringify(config, null, 4));
-            await context.reply("✅ Auto-Bio has been enabled");
-        } else if (arg === "off") {
-            config.AUTO_BIO = "false";
-            fs.writeFileSync(configPath, "module.exports = " + JSON.stringify(config, null, 4));
-            await context.reply("❌ Auto-Bio has been disabled");
-        } else {
-            const status = config.AUTO_BIO === "true" ? "enabled" : "disabled";
-            await context.reply(`Auto-Bio is currently: ${status}`);
+        let configPath = path.join(__dirname, "../config.js");
+        let config = require(configPath);
+
+        const arg = args[0]?.toLowerCase();
+        if (!arg || !["on","off"].includes(arg)) {
+            return await reply("Usage: .autobio on/off");
         }
 
-        delete require.cache[configPath];
-    },
+        config.AUTO_BIO = arg === "on" ? "true" : "false";
+
+        fs.writeFileSync(configPath, "module.exports = " + JSON.stringify(config, null, 4));
+        delete require.cache[require.resolve(configPath)];
+
+        await reply(`✅ Auto-Bio is now ${config.AUTO_BIO === "true" ? "enabled" : "disabled"}`);
+    }
 });
