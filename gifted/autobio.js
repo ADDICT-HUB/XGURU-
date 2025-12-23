@@ -8,16 +8,10 @@ evt({
 
   if (!isSuperUser) return reply("❌ Owner only command");
 
-  if (!args[0]) {
-    return reply(
-      `📝 Auto Bio: *${config.AUTO_BIO}*\n\nUse:\n.autobio on\n.autobio off`
-    );
-  }
+  if (!args[0]) return reply(`📝 Auto Bio: *${config.AUTO_BIO}*\nUse: .autobio on/off`);
 
   const value = args[0].toLowerCase();
-  if (!["on", "off"].includes(value)) {
-    return reply("❌ Use on or off");
-  }
+  if (!["on", "off"].includes(value)) return reply("❌ Use on or off");
 
   config.AUTO_BIO = value === "on" ? "true" : "false";
 
