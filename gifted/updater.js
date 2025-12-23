@@ -1,115 +1,135 @@
 const { gmd } = require("../gift");
-const axios = require('axios');
-const fs = require('fs');
+const axios = require("axios");
+const fs = require("fs-extra");
 const path = require("path");
 const AdmZip = require("adm-zip");
 
 gmd({
     pattern: "update",
-    alias: ["updatenow", "updt", "sync", "update now"],
-    react: '🆕',
-    desc: "Update the bot to the latest version.",
+    alias: ["updatenow", "updt", "sync"],
+    react: "🆕",
+    desc: "Safely update the bot from GitHub",
     category: "owner",
     filename: __filename
-}, async (from, Gifted, conText) => {
-  const { q, mek, react, reply, config, isSuperUser, setCommitHash, getCommitHash } = conText;
-    
-  if (!isSuperUser) {
-    await react("❌");
-    return reply("❌ Owner Only Command!");
+}, async (from, Gifted, ctx) => {
+
+    const {
+        reply,
+        react,
+        isSuperUser,
+        config,
+        setCommitHash,
+        getCommitHash
+    } = ctx;
+
+    if (!isSuperUser) {
+        await react("❌");
+        return reply("❌ *Owner only command*");
     }
-  
+
     try {
-        await reply("🔍 Checking for New Updates...");
+        await reply("🔍 Checking for updates...");
 
-        const { data: commitData } = await axios.get(`https://api.github.com/repos/${config.BOT_REPO}/commits/main`);
-        const latestCommitHash = commitData.sha;
+        // 🔹 Normalize repo (convert full URL → owner/repo)
+        let repo = config.BOT_REPO
+            .replace("https://github.com/", "")
+            .replace(".git", "")
+            .trim();
 
+        const apiUrl = `https://api.github.com/repos/${repo}/commits/main`;
+
+        const { data } = await axios.get(apiUrl, {
+            timeout: 15000,
+            headers: { "User-Agent": "X-GURU-BOT" }
+        });
+
+        const latestHash = data.sha;
         const currentHash = await getCommitHash();
 
-        if (latestCommitHash === currentHash) {
-            return reply("✅ Your Bot is Already on the Latest Version!");
+        if (latestHash && latestHash === currentHash) {
+            return reply("✅ *Already on latest version*");
         }
 
-        const authorName = commitData.commit.author.name;
-        const authorEmail = commitData.commit.author.email;
-        const commitDate = new Date(commitData.commit.author.date).toLocaleString();
-        const commitMessage = commitData.commit.message;
+        const commitInfo = `
+🆕 *New Update Found*
 
-        await reply(`🔄 Updating Bot...\n\n*Commit Details:*\n👤 Author: ${authorName} (${authorEmail})\n📅 Date: ${commitDate}\n💬 Message: ${commitMessage}`);
+👤 Author: ${data.commit.author.name}
+📅 Date: ${new Date(data.commit.author.date).toLocaleString()}
+💬 Message:
+${data.commit.message}
+`;
 
-        const zipPath = path.join(__dirname, '..', 'gifted-md-main.zip'); // Replace this  with your bot name and branch if you're cloning
-        const { data: zipData } = await axios.get(`https://github.com/${config.BOT_REPO}/archive/main.zip`, { responseType: "arraybuffer" });
-        fs.writeFileSync(zipPath, zipData);
+        await reply(commitInfo);
 
-        const extractPath = path.join(__dirname, '..', 'latest');
+        // 🔹 Download ZIP
+        const zipUrl = `https://github.com/${repo}/archive/refs/heads/main.zip`;
+        const zipPath = path.join(__dirname, "..", "update.zip");
+        const extractPath = path.join(__dirname, "..", "update_tmp");
+
+        const zipRes = await axios.get(zipUrl, {
+            responseType: "arraybuffer",
+            timeout: 20000
+        });
+
+        fs.writeFileSync(zipPath, zipRes.data);
+
+        // 🔹 Extract
         const zip = new AdmZip(zipPath);
         zip.extractAllTo(extractPath, true);
 
-        const sourcePath = path.join(extractPath, 'gifted-md-main'); // Replace this  with your bot name and branch if you're cloning
-        const destinationPath = path.join(__dirname, '..');
-        
-        const excludeList = [
-            '.env',
-            'gift/database.db'
+        // 🔹 Detect extracted folder automatically
+        const extractedFolder = fs
+            .readdirSync(extractPath)
+            .find(f => fs.lstatSync(path.join(extractPath, f)).isDirectory());
+
+        if (!extractedFolder) {
+            throw new Error("Invalid update package");
+        }
+
+        const sourcePath = path.join(extractPath, extractedFolder);
+        const targetPath = path.join(__dirname, "..");
+
+        // 🔹 Protected files/folders
+        const exclude = [
+            ".env",
+            "gift/session",
+            "node_modules",
+            "gift/database.db"
         ];
-        
-        copyFolderSync(sourcePath, destinationPath, excludeList);
-        await setCommitHash(latestCommitHash);
 
-        fs.unlinkSync(zipPath);
-        fs.rmSync(extractPath, { recursive: true, force: true });
+        copySafe(sourcePath, targetPath, exclude);
 
-        await reply("✅ Update Complete! Bot is Restarting...");
-        
-        setTimeout(() => {
-            process.exit(0);
-        }, 2000);
-        
-    } catch (error) {
-        console.error("Update error:", error);
-        return reply("❌ Update Failed. Please try by Redeploying Manually.");
+        await setCommitHash(latestHash);
+
+        // 🔹 Cleanup
+        fs.removeSync(zipPath);
+        fs.removeSync(extractPath);
+
+        await reply("✅ *Update complete*\n♻ Restarting bot...");
+
+        setTimeout(() => process.exit(0), 2000);
+
+    } catch (err) {
+        console.error("UPDATE ERROR:", err);
+        return reply("❌ *Update failed*\nTry manual redeploy.");
     }
 });
 
-function copyFolderSync(source, target, excludeList = ['.env']) {
-    if (!fs.existsSync(target)) {
-        fs.mkdirSync(target, { recursive: true });
-    }
+/* ================= SAFE COPY ================= */
 
-    const items = fs.readdirSync(source);
-    
-    for (const item of items) {
-        const srcPath = path.join(source, item);
-        const destPath = path.join(target, item);
+function copySafe(src, dest, exclude) {
+    if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
 
-        let shouldExclude = false;
-        
-        for (const excludePattern of excludeList) {
-            if (item === excludePattern) {
-                shouldExclude = true;
-                console.log(`Skipping ${item} to preserve custom settings.`);
-                break;
-            }
-            
-            const relativePath = path.relative(source, srcPath);
-            if (relativePath === excludePattern || relativePath.startsWith(excludePattern + path.sep)) {
-                shouldExclude = true;
-                console.log(`Skipping ${relativePath} to preserve custom settings.`);
-                break;
-            }
-        }
-        
-        if (shouldExclude) {
-            continue;
-        }
+    for (const item of fs.readdirSync(src)) {
+        if (exclude.some(e => item.startsWith(e))) continue;
 
-        const stat = fs.lstatSync(srcPath);
-        
-        if (stat.isDirectory()) {
-            copyFolderSync(srcPath, destPath, excludeList);
+        const srcPath = path.join(src, item);
+        const destPath = path.join(dest, item);
+
+        if (fs.lstatSync(srcPath).isDirectory()) {
+            copySafe(srcPath, destPath, exclude);
         } else {
-            fs.copyFileSync(srcPath, destPath);
+            fs.copySync(srcPath, destPath, { overwrite: true });
         }
     }
 }
