@@ -198,44 +198,69 @@ try {
             return `${days}d ${hours}h ${minutes}m ${seconds}s`;
         }
 
-        const now = new Date();
-        const date = new Intl.DateTimeFormat('en-GB', {
-            timeZone: timeZone,
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-        }).format(now);
+const now = new Date();
+const date = new Intl.DateTimeFormat('en-GB', {
+    timeZone: timeZone,
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+}).format(now);
 
-        const time = new Intl.DateTimeFormat('en-GB', {
-            timeZone: timeZone,
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: true
-        }).format(now);
+const time = new Intl.DateTimeFormat('en-GB', {
+    timeZone: timeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true
+}).format(now);
 
-        const uptime = formatUptime(process.uptime());
-        const totalCommands = commands.filter((command) => command.pattern).length;
+const uptime = formatUptime(process.uptime());
+const totalCommands = commands.filter((command) => command.pattern).length;
 
-        let list =  `
-╭━━〔 *${monospace(botName)}* 〕━━╮
-│ ✦ *Mᴏᴅᴇ* : ${monospace(botMode)}
-│ ✦ *Pʀᴇғɪx* : [ ${monospace(botPrefix)} ]
-│ ✦ *Usᴇʀ* : ${monospace(pushName)}
-│ ✦ *Pʟᴜɢɪɴs* : ${monospace(totalCommands.toString())}
-│ ✦ *Vᴇʀsɪᴏɴ* : ${monospace(botVersion)}
-│ ✦ *Uᴘᴛɪᴍᴇ* : ${monospace(uptime)}
-│ ✦ *Tɪᴍᴇ Nᴏᴡ* : ${monospace(time)}
-│ ✦ *Dᴀᴛᴇ Tᴏᴅᴀʏ* : ${monospace(date)}
-│ ✦ *Tɪᴍᴇ Zᴏɴᴇ* : ${monospace(timeZone)}
-│ ✦ *Sᴇʀᴠᴇʀ Rᴀᴍ* : ${monospace(ram)}
-╰─────────────╯${readmore}\n`;
+// Bold techy font function
+function boldFont(txt) {
+    const letters = {
+        A: '𝗔', B: '𝗕', C: '𝗖', D: '𝗗', E: '𝗘', F: '𝗙', G: '𝗚',
+        H: '𝗛', I: '𝗜', J: '𝗝', K: '𝗞', L: '𝗟', M: '𝗠', N: '𝗡',
+        O: '𝗢', P: '𝗣', Q: '𝗤', R: '𝗥', S: '𝗦', T: '𝗧', U: '𝗨',
+        V: '𝗩', W: '𝗪', X: '𝗫', Y: '𝗬', Z: '𝗭',
+        a: '𝗮', b: '𝗯', c: '𝗰', d: '𝗱', e: '𝗲', f: '𝗳', g: '𝗴',
+        h: '𝗵', i: '𝗶', j: '𝗷', k: '𝗸', l: '𝗹', m: '𝗺', n: '𝗻',
+        o: '𝗼', p: '𝗽', q: '𝗾', r: '𝗿', s: '𝘀', t: '𝘁', u: '𝘂',
+        v: '𝘃', w: '𝘄', x: '𝘅', y: '𝘆', z: '𝘇',
+        0: '𝟬', 1: '𝟭', 2: '𝟮', 3: '𝟯', 4: '𝟰', 5: '𝟱', 6: '𝟲', 7: '𝟳', 8: '𝟴', 9: '𝟵'
+    };
+    return txt.split('').map(c => letters[c] || c).join('');
+}
 
-        commands.forEach((gmd, index) => {
-            if (gmd.pattern && gmd.description) {
-                list += `*${index + 1} ${monospace(gmd.pattern)}*\n  ${gmd.description}\n`;
-            }
-        });
+// Metallic menu with bold font
+let list = `
+╔═━⊹✦ ${boldFont(botName)} ✦⊹━═╗
+
+💠 ${boldFont("BOT INFO")}
+╭────────────────────────╮
+│ 🔹 ${boldFont("Mode")}       : ${monospace(botMode)}
+│ 🔹 ${boldFont("Prefix")}     : [${monospace(botPrefix)}]
+│ 🔹 ${boldFont("User")}       : ${monospace(pushName)}
+│ 🔹 ${boldFont("Plugins")}    : ${monospace(totalCommands.toString())}
+│ 🔹 ${boldFont("Version")}    : ${monospace(botVersion)}
+│ 🔹 ${boldFont("Uptime")}     : ${monospace(uptime)}
+│ 🔹 ${boldFont("Time Now")}   : ${monospace(time)}
+│ 🔹 ${boldFont("Date")}       : ${monospace(date)}
+│ 🔹 ${boldFont("TimeZone")}   : ${monospace(timeZone)}
+│ 🔹 ${boldFont("Server RAM")} : ${monospace(ram)}
+╰────────────────────────╯
+
+💠 ${boldFont("COMMANDS LIST")}
+╭────────────────────────╮`;
+
+commands.forEach((gmd, index) => {
+    if (gmd.pattern && gmd.description) {
+        list += `│ ⚡ ${boldFont(index + 1 + ". " + gmd.pattern)}\n│    ${gmd.description}\n`;
+    }
+});
+
+list += `╰────────────────────────╯${readmore}\n`;
 
         const giftedMess = {
         image: { url: botPic },
