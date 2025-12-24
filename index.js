@@ -13,6 +13,14 @@ const {
     makeCacheableSignalKeyStore
 } = require("gifted-baileys");
 
+const fs = require("fs-extra");
+const path = require("path");
+const express = require("express");
+const pino = require("pino");
+const { Boom } = require("@hapi/boom");
+
+/* ================= LOCAL IMPORTS ================= */
+const config = require("./config");
 const {
     evt,
     logger,
@@ -39,13 +47,6 @@ const {
     createContext2
 } = require("./gift");
 
-const pino = require("pino");
-const fs = require("fs-extra");
-const path = require("path");
-const express = require("express");
-const { Boom } = require("@hapi/boom");
-const config = require("./config");
-
 /* ================= SETTINGS ================= */
 const {
     MODE,
@@ -68,7 +69,7 @@ const {
 /* ================= SERVER ================= */
 const app = express();
 const PORT = process.env.PORT || 10000;
-app.get("/", (_, res) => res.send("Xguru Bot Running"));
+app.get("/", (_, res) => res.send(`${BOT_NAME} Running`));
 app.listen(PORT, () => console.log("Server Running:", PORT));
 
 logger.level = "silent";
@@ -81,6 +82,7 @@ let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 30;
 const RECONNECT_DELAY = 5000;
 
+/* ================= LOAD SESSION ================= */
 loadSession();
 
 /* ================= START BOT ================= */
@@ -131,18 +133,18 @@ async function startGifted() {
 
             /* -------- AUTO READ -------- */
             if (AUTO_READ_MESSAGES === "true") {
-                await Gifted.readMessages([m.key]);
+                await Gifted.readMessages([m.key]).catch(console.error);
             }
 
             /* -------- AUTO REACT -------- */
             if (AUTO_REACT === "true" && !m.key.fromMe) {
                 const emoji = emojis[Math.floor(Math.random() * emojis.length)];
-                await GiftedAutoReact(emoji, m, Gifted);
+                await GiftedAutoReact(emoji, m, Gifted).catch(console.error);
             }
 
             /* -------- ANTILINK -------- */
             if (ANTILINK !== "false" && !m.key.fromMe) {
-                await GiftedAntiLink(Gifted, m, ANTILINK);
+                await GiftedAntiLink(Gifted, m, ANTILINK).catch(console.error);
             }
 
             /* -------- COMMAND HANDLER -------- */
@@ -154,12 +156,10 @@ async function startGifted() {
             const command = evt.commands.find(
                 c => c.pattern === cmd || c.aliases?.includes(cmd)
             );
-
             if (!command) return;
             if (MODE === "private" && !isOwner) return;
 
-            const reply = txt =>
-                Gifted.sendMessage(from, { text: txt }, { quoted: m });
+            const reply = txt => Gifted.sendMessage(from, { text: txt }, { quoted: m });
 
             try {
                 await command.function(from, Gifted, {
@@ -183,51 +183,66 @@ async function startGifted() {
                 console.error("Command Error:", err);
                 reply(`🚨 Command failed:\n${err.message}`);
             }
+
+            /* -------- AI Chat & Image -------- */
+            if (!m.key.fromMe && CHATBOT === "true") {
+                const { openAITextResponse, openAIImageGen } = require("./plugins/ai");
+                if (body.startsWith("!ai ")) {
+                    const prompt = body.slice(4);
+                    const response = await openAITextResponse(prompt).catch(console.error);
+                    if (response) await Gifted.sendMessage(from, { text: response }, { quoted: m });
+                }
+                if (body.startsWith("!img ")) {
+                    const prompt = body.slice(5);
+                    const imgBuffer = await openAIImageGen(prompt).catch(console.error);
+                    if (imgBuffer) await Gifted.sendMessage(from, { image: imgBuffer }, { quoted: m });
+                }
+            }
+
+            /* -------- GAMES -------- */
+            if (body.startsWith("!tictactoe") || body.startsWith("!trivia")) {
+                const { startTicTacToe, startTrivia } = require("./plugins/games");
+                if (body.startsWith("!tictactoe")) startTicTacToe(from, sender, Gifted);
+                if (body.startsWith("!trivia")) startTrivia(from, sender, Gifted);
+            }
+
+            /* -------- MEDIA -------- */
+            if (body === "!sticker" && type === "imageMessage") {
+                const { stickerMaker } = require("./plugins/media");
+                const buffer = await getMediaBuffer(m).catch(console.error);
+                if (buffer) {
+                    const sticker = await stickerMaker(buffer).catch(console.error);
+                    if (sticker) await Gifted.sendMessage(from, { sticker }, { quoted: m });
+                }
+            }
         });
 
         /* ================= AUTO BIO ================= */
-        if (AUTO_BIO === "true") {
-            setInterval(() => GiftedAutoBio(Gifted), 60 * 1000);
-        }
+        if (AUTO_BIO === "true") setInterval(() => GiftedAutoBio(Gifted), 60 * 1000);
 
         /* ================= CHAT BOT ================= */
-        if (CHATBOT === "true" || CHATBOT === "audio") {
-            GiftedChatBot(
-                Gifted,
-                CHATBOT,
-                CHATBOT_MODE,
-                createContext,
-                createContext2
-            );
-        }
+        if (CHATBOT === "true") GiftedChatBot(Gifted, CHATBOT, CHATBOT_MODE, createContext, createContext2);
 
         /* ================= ANTICALL ================= */
-        if (ANTICALL === "true") {
-            Gifted.ev.on("call", async json => GiftedAnticall(json, Gifted));
-        }
+        if (ANTICALL === "true") Gifted.ev.on("call", async json => GiftedAnticall(json, Gifted));
 
         /* ================= PRESENCE ================= */
         Gifted.ev.on("messages.upsert", async ({ messages }) => {
-            if (messages[0]?.key?.remoteJid)
-                GiftedPresence(Gifted, messages[0].key.remoteJid);
+            if (messages[0]?.key?.remoteJid) GiftedPresence(Gifted, messages[0].key.remoteJid);
         });
 
         /* ================= CONNECTION ================= */
         Gifted.ev.on("connection.update", async update => {
             const { connection, lastDisconnect } = update;
 
-            if (connection === "connecting") {
-                console.log("🕗 Connecting Bot...");
-            }
-
+            if (connection === "connecting") console.log("🕗 Connecting Bot...");
             if (connection === "open") {
                 console.log("✅ Bot Online");
                 reconnectAttempts = 0;
-
                 if (STARTING_MESSAGE === "true") {
                     await Gifted.sendMessage(Gifted.user.id, {
                         text: `✅ ${BOT_NAME} Connected\nPrefix: ${PREFIX}\nMode: ${MODE}`
-                    });
+                    }).catch(console.error);
                 }
             }
 
