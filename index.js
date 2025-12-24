@@ -396,13 +396,16 @@ Gifted.ev.on("messages.upsert", async ({ messages }) => {
     };
 
     // ───────── BOT & SENDER ─────────
-    const botId = standardizeJid(Gifted.user?.id);
-    const sender = standardizeJid(
-        ms.key.participant || 
-        ms.key.participantPn || 
-        ms.key.senderPn || 
-        ms.key.remoteJid
-    );
+// ───────── BOT & SENDER ─────────
+const botId = standardizeJid(Gifted.user?.id);
+
+// Determine the actual sender
+const sender = standardizeJid(
+    ms.key?.participant ||      // normal group message participant
+    ms.key?.participantPn ||    // fallback participantPn
+    ms.key?.senderPn ||         // fallback senderPn
+    ms.key?.remoteJid || ''     // default to remoteJid or empty string
+);
 
     // ───────── ENTRY POINT CHECK ─────────
     const hasEntryPointContext =
