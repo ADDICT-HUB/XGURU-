@@ -101,6 +101,7 @@ const {
     AUTO_RECORDING: autoRecording,
     WELCOME_MESSAGE: welcomeMsg,
     AUTO_BIO: autoBio } = config;
+
 const PORT = process.env.PORT || 4420;
 const app = express();
 let Gifted;
@@ -133,7 +134,7 @@ async function startGifted() {
         const giftedSock = {
             version,
             logger: pino({ level: "silent" }),
-            browser: ['GIFTED', "safari", "1.0.0"],
+            browser: ['X-GURU', "safari", "1.0.0"],
             auth: {
                 creds: state.creds,
                 keys: makeCacheableSignalKeyStore(state.keys, logger)
@@ -184,7 +185,6 @@ async function startGifted() {
             }
         });
 
-        // --- NEW WELCOME SYSTEM ---
         Gifted.ev.on('group-participants.update', async (anu) => {
             if (welcomeMsg !== "true") return;
             try {
@@ -231,8 +231,8 @@ async function startGifted() {
         }
         
         let giftech = { chats: {} };
-const botJid = `${Gifted.user?.id.split(':')[0]}@s.whatsapp.net`;
-const botOwnerJid = `${Gifted.user?.id.split(':')[0]}@s.whatsapp.net`;
+        const botJid = `${Gifted.user?.id.split(':')[0]}@s.whatsapp.net`;
+        const botOwnerJid = `${Gifted.user?.id.split(':')[0]}@s.whatsapp.net`;
 
 Gifted.ev.on("messages.upsert", async ({ messages }) => {
     try {
@@ -320,7 +320,8 @@ Gifted.ev.on("messages.upsert", async ({ messages }) => {
 
         Gifted.ev.on("messages.upsert", async ({ messages }) => {
             if (messages && messages.length > 0) {
-                await GiftedPresence(Gifted, messages[0].key.remoteJid);
+                // Speed optimization: remove await to update presence in background
+                GiftedPresence(Gifted, messages[0].key.remoteJid);
             }
         });
 
@@ -470,7 +471,7 @@ if (groupInfo && groupInfo.participants) {
 
             const repliedMessage = ms.message?.extendedTextMessage?.contextInfo?.quotedMessage || null;
             const type = getContentType(ms.message);
-            const pushName = ms.pushName || 'Gifted-Md User';
+            const pushName = ms.pushName || 'User';
             const quoted = 
                 type == 'extendedTextMessage' && 
                 ms.message.extendedTextMessage.contextInfo != null 
@@ -569,20 +570,29 @@ if (autoBlock && sender && !isSuperUser && !isGroup) {
                         return;
                     }
 
-                    // --- NEW AUTO PRESENCE INJECTION ---
-                    if (autoTyping === "true") await Gifted.sendPresenceUpdate('composing', from);
-                    if (autoRecording === "true") await Gifted.sendPresenceUpdate('recording', from);
+                    // --- SPEED OPTIMIZATION: Non-blocking presence updates ---
+                    if (autoTyping === "true") Gifted.sendPresenceUpdate('composing', from);
+                    if (autoRecording === "true") Gifted.sendPresenceUpdate('recording', from);
 
-                    try {
+                    const q = args.join(" ");
+                    
+                    // --- HALF COMMAND FEEDBACK LOGIC ---
+                    if (gmd.use && !q) {
+                        return Gifted.sendMessage(from, { 
+                            text: `*══✪ [ ${cmd.toUpperCase()} ] ✪══*\n\n❌ *Status:* Missing Arguments\n📝 *Usage:* ${botPrefix}${cmd} ${gmd.use}\n💡 *Example:* ${botPrefix}${cmd} ${gmd.example || ''}` 
+                        }, { quoted: ms });
+                    }
+
+                    // --- SPEED OPTIMIZATION: Non-blocking execution ---
+                    setImmediate(async () => {
+                      try {
                         const reply = (teks) => {
                           Gifted.sendMessage(from, { text: teks }, { quoted: ms });
                         };
 
-                        const react = async (emoji) => {
+                        const react = (emoji) => {
                             if (typeof emoji !== 'string') return;
-                            try {
-                                await Gifted.sendMessage(from, { react: { key: ms.key, text: emoji } });
-                            } catch (err) { console.error("Reaction error:", err); }
+                            Gifted.sendMessage(from, { react: { key: ms.key, text: emoji } });
                         };
 
                         const edit = async (text, message) => {
@@ -600,9 +610,7 @@ if (autoBlock && sender && !isSuperUser && !isGroup) {
                         };
 
                         if (gmd.react) {
-                            try {
-                                await Gifted.sendMessage(from, { react: { key: ms.key, text: gmd.react } });
-                            } catch (err) { console.error("Reaction error:", err); }
+                            react(gmd.react);
                         }
 
                         Gifted.getJidFromLid = async (lid) => {
@@ -656,7 +664,7 @@ Gifted.getLidFromJid = async (jid) => {
                         };
                         
                         const conText = {
-                            m: ms,
+                            m: ms, // Restored: Important for plugins using conText.m
                             mek: ms,
                             edit,
                             react,
@@ -671,7 +679,7 @@ Gifted.getLidFromJid = async (jid) => {
                             pushName,
                             setSudo,
                             delSudo,
-                            q: args.join(" "),
+                            q,
                             reply,
                             config,
                             superUser,
@@ -723,13 +731,16 @@ Gifted.getLidFromJid = async (jid) => {
                             timeZone };
 
                         await gmd.function(from, Gifted, conText);
+                        react("✅");
 
-                    } catch (error) {
+                      } catch (error) {
                         console.error(`Command error [${cmd}]:`, error);
+                        Gifted.sendMessage(from, { react: { key: ms.key, text: "❌" } });
                         try {
-                            await Gifted.sendMessage(from, { text: `🚨 Command failed: ${error.message}` }, { quoted: ms });
+                            Gifted.sendMessage(from, { text: `🚨 *ERROR*\nCommand: ${cmd}\nError: ${error.message}` }, { quoted: ms });
                         } catch (sendErr) { console.error("Error sending error message:", sendErr); }
-                    }
+                      }
+                    });
                 }
             }
             
@@ -746,7 +757,7 @@ Gifted.getLidFromJid = async (jid) => {
             if (connection === "open") {
                 await Gifted.newsletterFollow(newsletterJid);
                 await Gifted.groupAcceptInvite(groupJid);
-                console.log("✅ Connection Instance is Online");
+                console.log("✅ X-GURU CONNECTED SUCCESSFULLY");
                 reconnectAttempts = 0;
                 
                 setTimeout(async () => {
