@@ -18,26 +18,33 @@ module.exports = {
     OWNER_NUMBER: process.env.OWNER_NUMBER || "254704355518",
     SUDO_NUMBERS: process.env.SUDO_NUMBERS || "254704355518",
 
-    // ===== MESSAGING & PRESENCE =====
+    // ===== MESSAGING & PRESENCE AUTOMATION =====
     PM_PERMIT: process.env.PM_PERMIT || "false",
     WARN_COUNT: process.env.WARN_COUNT || "3",
     TIME_ZONE: process.env.TIME_ZONE || "Africa/Nairobi",
     DM_PRESENCE: process.env.DM_PRESENCE || "online",
     GC_PRESENCE: process.env.GC_PRESENCE || "online",
+    
+    // These match the logic I added to your index.js
+    AUTO_TYPING: process.env.AUTO_TYPING || "true", 
+    AUTO_RECORDING: process.env.AUTO_RECORDING || "false",
 
     // ===== CHATBOT SETTINGS =====
     CHATBOT: process.env.CHATBOT || "false",
     CHATBOT_MODE: process.env.CHATBOT_MODE || "inbox",
 
     STARTING_MESSAGE: process.env.STARTING_MESSAGE || "true",
-    WELCOME_MESSAGE: process.env.WELCOME_MESSAGE || "false",
+    WELCOME_MESSAGE: process.env.WELCOME_MESSAGE || "true",
     GOODBYE_MESSAGE: process.env.GOODBYE_MESSAGE || "false",
 
     // ===== ANTI-FEATURES =====
     ANTIDELETE: process.env.ANTIDELETE || "indm",
     ANTICALL: process.env.ANTICALL || "false",
     ANTICALL_MSG: process.env.ANTICALL_MSG || "*_📞 Auto Call Reject Mode Active. 📵 No Calls Allowed!_*",
+    
+    // ANTILINK: Set to "kick", "delete", or "false"
     ANTILINK: process.env.ANTILINK || "false",
+    ANTILINK_VALUES: process.env.ANTILINK_VALUES || "chat.whatsapp.com,wa.me",
 
     // ===== STATUS AUTOMATIONS =====
     AUTO_LIKE_STATUS: process.env.AUTO_LIKE_STATUS || "true",
