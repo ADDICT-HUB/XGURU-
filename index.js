@@ -774,58 +774,72 @@ Gifted.getLidFromJid = async (jid) => {
         });
 
         Gifted.ev.on("connection.update", async (update) => {
-            const { connection, lastDisconnect } = update;
-            
-            if (connection === "connecting") {
-                console.log("🕗 Connecting Bot...");
-                reconnectAttempts = 0;
-            }
+    const { connection, lastDisconnect } = update;
+    
+    if (connection === "connecting") {
+        console.log("🕗 Connecting Bot...");
+        reconnectAttempts = 0;
+    }
 
-            if (connection === "open") {
-                await Gifted.newsletterFollow(newsletterJid);
-                await Gifted.groupAcceptInvite(groupJid);
-                console.log("✅ Connection Instance is Online");
-                reconnectAttempts = 0;
-                
-                setTimeout(async () => {
-                    try {
-                        const totalCommands = commands.filter((command) => command.pattern).length;
-                        console.log('💜 Connected to Whatsapp, Active!');
-                            
-                        if (startMess === 'true') {
-                            const md = botMode === 'public' ? "public" : "private";
-                            const connectionMsg = `
-*${botName} 𝐂𝐎𝐍𝐍𝐄𝐂𝐓𝐄𝐃*
+    if (connection === "open") {
+        await Gifted.newsletterFollow(newsletterJid);
+        await Gifted.groupAcceptInvite(groupJid);
+        console.log("✅ Connection Instance is Online");
+        reconnectAttempts = 0;
+        
+        setTimeout(async () => {
+            try {
+                const totalCommands = commands.filter((command) => command.pattern).length;
+                console.log('💜 Connected to Whatsapp, Active!');
+                    
+                if (startMess === 'true') {
+                    const md = botMode === 'public' ? "𝐏𝐮𝐛𝐥𝐢𝐜" : "𝐏𝐫𝐢𝐯𝐚𝐭𝐞";
+                    
+                    // The "NI MBAYA" Table Structure
+                    const connectionMsg = `
+✨ *𝐗-𝐆𝐔𝐑𝐔 𝐌𝐃 𝐈𝐍𝐓𝐄𝐆𝐑𝐀𝐓𝐄𝐃* ✨
 
-𝐏𝐫𝐞𝐟𝐢𝐱       : *[ ${botPrefix} ]*
-𝐏𝐥𝐮𝐠𝐢𝐧𝐬      : *${totalCommands.toString()}*
-𝐌𝐨𝐝𝐞        : *${md}*
-𝐎𝐰𝐧𝐞𝐫       : *${ownerNumber}*
-𝐓𝐮𝐭𝐨𝐫𝐢𝐚𝐥𝐬     : *${config.YT}*
-𝐔𝐩𝐝𝐚𝐭𝐞𝐬      : *${newsletterUrl}*
+╔════════════════════════╗
+  *『 𝐒𝐘𝐒𝐓𝐄𝐌 𝐈𝐍𝐅𝐎𝐑𝐌𝐀𝐓𝐈𝐎𝐍 』*
+  
+  ⋄ 𝐒𝐭𝐚𝐭𝐮𝐬   : 𝐍𝐈 𝐌𝐁𝐀𝐘𝐀 😅
+  ⋄ 𝐁𝐨𝐭 𝐍𝐚𝐦𝐞 : ${botName}
+  ⋄ 𝐏𝐫𝐞𝐟𝐢𝐱   : [ ${botPrefix} ]
+  ⋄ 𝐌𝐨𝐝𝐞     : ${md}
+  ⋄ 𝐂𝐦𝐝𝐬     : ${totalCommands.toString()}
+  ⋄ 𝐎𝐰𝐧𝐞𝐫    : ${ownerNumber}
+╚════════════════════════╝
 
-> *${botCaption}*`;
+> *${botCaption}*
+> *Developed by Maurice Gift*`;
 
-                            await Gifted.sendMessage(
-                                Gifted.user.id,
-                                {
-                                    text: connectionMsg,
-                                    ...createContext(botName, {
-                                        title: "BOT INTEGRATED",
-                                        body: "Status: Ready for Use"
-                                    })
-                                },
-                                {
-                                    disappearingMessagesInChat: true,
-                                    ephemeralExpiration: 300,
+                    await Gifted.sendMessage(
+                        Gifted.user.id,
+                        {
+                            text: connectionMsg,
+                            contextInfo: {
+                                externalAdReply: {
+                                    title: "𝐗-𝐆𝐔𝐑𝐔 𝐌𝐃 𝐕𝟓 𝐒𝐔𝐂𝐂𝐄𝐒𝐒",
+                                    body: "𝐒𝐭𝐚𝐭𝐮𝐬: 𝐍𝐈 𝐌𝐁𝐀𝐘𝐀 😅",
+                                    thumbnailUrl: "https://files.catbox.moe/52699c.jpg",
+                                    sourceUrl: "https://whatsapp.com/channel/0029Vb3hlgX5kg7G0nFggl0Y",
+                                    mediaType: 1,
+                                    renderLargerThumbnail: true
                                 }
-                            );
+                            }
+                        },
+                        {
+                            disappearingMessagesInChat: true,
+                            ephemeralExpiration: 300,
                         }
-                    } catch (err) {
-                        console.error("Post-connection setup error:", err);
-                    }
-                }, 5000);
+                    );
+                }
+            } catch (err) {
+                console.error("Post-connection setup error:", err);
             }
+        }, 5000);
+    }
+});
 
             if (connection === "close") {
                 const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
