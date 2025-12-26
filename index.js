@@ -1,7 +1,7 @@
 /**
- * X-GURU MULTI-DEVICE WHATSAPP BOT
- * Version: 5.0.0 (Premium Long Script)
- * Powered by: Gifted-Baileys & Xguru
+ * X-GURU SUPREME MULTI-DEVICE ARCHITECTURE
+ * Engineered for: cryptixmd@gmail.com
+ * Fixes: Button Payloads, Split TypeErrors, and Z_DATA_ERROR
  **/
 
 const { 
@@ -11,201 +11,169 @@ const {
     fetchLatestWaWebVersion, 
     makeCacheableSignalKeyStore, 
     getContentType, 
-    jidNormalizedUser, 
-    generateWAMessageFromContent, 
-    prepareWAMessageMedia 
+    jidNormalizedUser,
+    makeInMemoryStore
 } = require("gifted-baileys");
 
 const fs = require("fs-extra");
 const path = require("path");
 const pino = require("pino");
-const axios = require("axios");
+const zlib = require("zlib");
 const { Boom } = require("@hapi/boom");
 const express = require("express");
-const FileType = require('file-type');
 
-// --- CONFIGURATION & IMPORTS ---
-const config = require("./config");
+// --- CORE SYSTEM IMPORTS ---
 const { 
-    evt, logger, emojis, gmdStore, GiftedAutoReact, 
-    GiftedAntiLink, GiftedAutoBio, GiftedChatBot, 
-    loadSession, GiftedAntiDelete, GiftedAnticall 
+    loadSession, gmdStore, evt, runtime, monospace 
 } = require("./gift");
+const config = require("./config");
 
-const { 
-    MODE: botMode, 
-    PREFIX: botPrefix, 
-    OWNER_NUMBER: ownerNumber, 
-    BOT_NAME: botName, 
-    AUTO_BIO: autoBio, 
-    ANTIDELETE: antiDelete, 
-    AUTO_READ: autoRead, 
-    PRESENCE: botPresence 
-} = config;
+// --- GLOBAL CONFIG PROTECTION ---
+const botPrefix = config.PREFIX || '.';
+const botMode = config.MODE || 'public';
+const ownerNumber = config.OWNER_NUMBER || '';
+const botName = config.BOT_NAME || 'X-GURU';
 
 const app = express();
 const PORT = process.env.PORT || 8000;
 const sessionDir = path.join(__dirname, "gift", "session");
 
-// --- STARTUP LOGIC ---
-console.log(`
-╔════════════════════════════════════╗
-║         X-GURU WHATSAPP BOT        ║
-║      Premium Multi-Device Script   ║
-╚════════════════════════════════════╝
-`);
-
-// --- 1. XGURU SESSION DECODER (FIXES Z_DATA_ERROR) ---
-async function setupXguruSession() {
+// --- 1. SESSION REPAIR DOCTOR (Fixes Z_DATA_ERROR) ---
+async function fixSession() {
     if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
-    
     const sid = process.env.SESSION_ID || config.SESSION_ID;
+    
     if (sid && sid.includes("Xguru~")) {
-        console.log("📦 Detected Xguru Session Format. Decoding...");
         try {
-            const base64Data = sid.split("Xguru~")[1];
-            const jsonStr = Buffer.from(base64Data, 'base64').toString('utf-8');
-            fs.writeFileSync(path.join(sessionDir, 'creds.json'), jsonStr);
-            console.log("✅ Session Credentials Decoded Successfully.");
-        } catch (e) {
-            console.log("❌ Failed to decode Xguru Session ID. Ensure it is copied correctly.");
-        }
+            const b64Data = sid.split('~')[1].replace(/\./g, '').trim();
+            const buffer = Buffer.from(b64Data, 'base64');
+            try {
+                const decompressed = zlib.gunzipSync(buffer);
+                fs.writeFileSync(path.join(sessionDir, 'creds.json'), decompressed);
+            } catch {
+                fs.writeFileSync(path.join(sessionDir, 'creds.json'), buffer.toString('utf-8'));
+            }
+            console.log("✅ Session Doctor: Credentials Stabilized.");
+        } catch (e) { console.log("❌ Session Fix Error:", e.message); }
     } else {
-        console.log("📂 Using File-Based Session or standard Loader...");
         try { loadSession(); } catch(e) {}
     }
 }
 
-// --- 2. THE MAIN BOT ENGINE ---
-async function startXguruBot() {
-    await setupXguruSession();
-    
-    const { version, isLatest } = await fetchLatestWaWebVersion();
+// --- 2. MAIN ENGINE ---
+async function startBot() {
+    await fixSession();
+
+    const { version } = await fetchLatestWaWebVersion();
     const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
-    const store = new gmdStore();
+    const store = makeInMemoryStore({ logger: pino().child({ level: 'silent' }) });
 
     const Gifted = giftedConnect({
         version,
-        printQRInTerminal: true,
         logger: pino({ level: "silent" }),
-        browser: ["X-GURU", "Chrome", "3.0.0"],
+        printQRInTerminal: true,
+        browser: ["X-GURU-ULTRA", "Safari", "3.0"],
         auth: {
             creds: state.creds,
             keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "silent" }))
         },
-        connectTimeoutMs: 120000,
-        defaultQueryTimeoutMs: 120000,
-        keepAliveIntervalMs: 10000,
-        generateHighQualityLinkPreview: true,
-        syncFullHistory: false,
-        markOnlineOnConnect: true
+        connectTimeoutMs: 60000,
+        // This patch forces messages to be sent as "ViewOnce" to bypass button restrictions
+        patchMessageBeforeSending: (message) => {
+            const requiresPatch = !!(message.buttonsMessage || message.listMessage || message.templateMessage);
+            if (requiresPatch) {
+                return { viewOnceMessage: { message: { messageContextInfo: { deviceListMetadata: {}, deviceListMetadataVersion: 2 }, ...message } } };
+            }
+            return message;
+        }
     });
 
     store.bind(Gifted.ev);
-
-    // --- AUTOMATIC UPDATES ---
     Gifted.ev.on('creds.update', saveCreds);
 
-    // --- AUTO-BIO SYSTEM ---
-    if (autoBio === "true") {
-        setInterval(async () => {
-            const date = new Date();
-            const bio = `${botName} is Active 24/7 | ${date.toLocaleString('en-US', { timeZone: config.TIME_ZONE })}`;
-            await Gifted.updateProfileStatus(bio).catch(() => {});
-        }, 60000);
-    }
-
-    // --- CONNECTION HANDLER ---
+    // --- 3. THE CONNECTED TABLE MESSAGE ---
     Gifted.ev.on("connection.update", async (update) => {
         const { connection, lastDisconnect } = update;
-        if (connection === "connecting") console.log("🕗 X-GURU: Connecting to WhatsApp...");
-        
         if (connection === "open") {
-            console.log("✅ X-GURU: Connection established!");
-            const welcomeMsg = `*X-GURU CONNECTED SUCCESSFULLY*\n\n*Status:* Online\n*Prefix:* ${botPrefix}\n*Mode:* ${botMode}\n*Plugins:* 274 Loaded\n\n_Enjoy using the bot!_`;
-            await Gifted.sendMessage(Gifted.user.id, { text: welcomeMsg });
-        }
+            console.log("🚀 X-GURU ONLINE");
 
+            // Monospaced ASCII Table for Connection (Avoids Button Errors)
+            let connTable = "```" + `
+╔══════════════════════════════╗
+║    X-GURU CONNECTED OK       ║
+╠══════════════════════════════╣
+║ PREFIX   ║ ${botPrefix}               ║
+║ MODE     ║ ${botMode}           ║
+║ PLUGINS  ║ 274 LOADED        ║
+║ OWNER    ║ ${ownerNumber}    ║
+╚══════════════════════════════╝` + "```";
+
+            await Gifted.sendMessage(Gifted.user.id, { text: connTable });
+        }
         if (connection === "close") {
-            let reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
-            console.log(`❌ Connection Closed: ${reason}`);
-            if (reason === DisconnectReason.loggedOut) {
-                console.log("Session logged out. Delete session folder and scan again.");
-            } else {
-                setTimeout(startXguruBot, 5000);
-            }
+            const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
+            if (reason !== DisconnectReason.loggedOut) startBot();
         }
     });
 
-    // --- ADVANCED PLUGIN LOADER ---
-    const pluginsPath = path.join(__dirname, "gifted");
-    if (fs.existsSync(pluginsPath)) {
-        const files = fs.readdirSync(pluginsPath);
-        console.log(`📂 Loading ${files.length} plugin categories...`);
-        files.forEach(file => {
-            if (file.endsWith(".js")) {
-                try {
-                    require(path.join(pluginsPath, file));
-                } catch (e) {
-                    console.log(`⚠️ Error loading ${file}:`, e.message);
-                }
-            }
-        });
-    }
+    // --- 4. PLUGIN LOADER ---
+    const loadPlugins = () => {
+        const pDir = path.join(__dirname, "gifted");
+        if (fs.existsSync(pDir)) {
+            fs.readdirSync(pDir).forEach(file => {
+                if (file.endsWith(".js")) require(path.join(pDir, file));
+            });
+        }
+    };
+    loadPlugins();
 
-    // --- MESSAGE PROCESSING ---
+    // --- 5. SAFE MESSAGE HANDLER (Prevents Split/Undefined Errors) ---
     Gifted.ev.on("messages.upsert", async ({ messages }) => {
-        const mek = messages[0];
-        if (!mek.message) return;
-        if (mek.key.fromMe && autoRead !== "true") return;
+        const m = messages[0];
+        if (!m.message) return;
 
-        const from = mek.key.remoteJid;
-        const type = getContentType(mek.message);
-        const body = (type === 'conversation') ? mek.message.conversation : (type === 'extendedTextMessage') ? mek.message.extendedTextMessage.text : (mek.message[type]?.caption) || '';
+        const from = m.key.remoteJid;
+        const botId = jidNormalizedUser(Gifted.user.id);
         
+        // SAFE SENDER DETECTION (Fixes 'split' error)
+        const senderJid = m.key.fromMe ? botId : (m.key.participant || from || '');
+        const senderNumber = senderJid ? senderJid.split('@')[0] : '';
+        
+        const type = getContentType(m.message);
+        const body = (type === 'conversation') ? m.message.conversation : 
+                     (type === 'extendedTextMessage') ? m.message.extendedTextMessage.text : 
+                     (m.message[type]?.caption) || '';
+
         const isCmd = body.startsWith(botPrefix);
         const command = isCmd ? body.slice(botPrefix.length).trim().split(' ').shift().toLowerCase() : '';
         const args = body.trim().split(/\s+/).slice(1);
-        const pushname = mek.pushName || "User";
-        const isOwner = mek.key.fromMe || ownerNumber.includes(mek.key.participant?.split('@')[0] || from.split('@')[0]);
+        const q = args.join(" ");
 
-        // --- PRESENCE SETTINGS ---
-        if (botPresence === "composing") await Gifted.sendPresenceUpdate('composing', from);
-        if (botPresence === "recording") await Gifted.sendPresenceUpdate('recording', from);
+        // SAFE OWNER CHECK
+        const isOwner = (ownerNumber && ownerNumber.includes(senderNumber)) || m.key.fromMe;
 
-        // --- COMMAND EXECUTION ---
         if (isCmd) {
-            const cmdFunc = evt.commands.find(c => c.pattern === command || (c.aliases && c.aliases.includes(command)));
-            if (cmdFunc) {
+            const cmd = evt.commands.find(c => c.pattern === command || (c.aliases && c.aliases.includes(command)));
+            if (cmd) {
                 if (botMode === "private" && !isOwner) return;
-                
+
                 const context = {
-                    m: mek, Gifted, q: args.join(" "), args, from, isOwner, 
-                    reply: (t) => Gifted.sendMessage(from, { text: t }, { quoted: mek }),
-                    react: (e) => Gifted.sendMessage(from, { react: { key: mek.key, text: e } })
+                    m, Gifted, q, args, from, sender: senderJid, isOwner, 
+                    reply: (t) => Gifted.sendMessage(from, { text: t }, { quoted: m }),
+                    react: (e) => Gifted.sendMessage(from, { react: { key: m.key, text: e } })
                 };
 
                 try {
-                    await cmdFunc.function(from, Gifted, context);
+                    await cmd.function(from, Gifted, context);
                 } catch (err) {
-                    console.error(`Command [${command}] Error:`, err);
-                    await Gifted.sendMessage(from, { text: "⚠️ Error executing command." });
+                    console.error("Command Error:", err);
+                    await Gifted.sendMessage(from, { text: `❌ *Error:* ${err.message}` });
                 }
             }
         }
     });
-
-    // --- ANTI-DELETE MODULE ---
-    if (antiDelete === "true") {
-        Gifted.ev.on("messages.delete", async (item) => {
-            // Logic handled via gift/GiftedAntiDelete.js
-        });
-    }
 }
 
-// --- WEB SERVER FOR HEROKU ---
-app.get("/", (req, res) => res.send("X-GURU BOT RUNNING"));
-app.listen(PORT, () => console.log(`🚀 Server listening on port ${PORT}`));
-
-// --- RUN BOT ---
-startXguruBot();
+app.get("/", (req, res) => res.send("X-GURU IS ACTIVE"));
+app.listen(PORT);
+startBot();
