@@ -844,7 +844,7 @@ ${newsletterUrl}
                                         externalAdReply: {
                                             title: "𝐗-𝐆𝐔𝐑𝐔 𝐌𝐃 𝐕𝟓 𝐒𝐔𝐂𝐂𝐄𝐒𝐒",
                                             body: "𝐉𝐨𝐢𝐧 𝐎𝐮𝐫 𝐎𝐟𝐟𝐢𝐜𝐢𝐚𝐥 𝐂𝐡𝐚𝐧𝐧𝐞𝐥 📢",
-                                            thumbnailUrl: "https://files.catbox.moe/52699c.jpg",
+                                            thumbnailUrl: "https://files.catbox.moe/atpgij.jpg",
                                             sourceUrl: newsletterUrl,
                                             mediaType: 1,
                                             renderLargerThumbnail: true
