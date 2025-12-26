@@ -1,29 +1,57 @@
+const { evt } = require("../gift"); 
 const fs = require("fs");
 const path = require("path");
-const { gmd } = require("../gift");
 
-const settingsPath = path.join(__dirname, "../settings.js");
+const configPath = path.join(__dirname, "../config.js");
 
-gmd({
-  pattern: "autoreadstatus",
-  react: "👀",
-  category: "owner",
-  description: "Toggle Auto Read Status",
-}, async (from, Gifted, conText) => {
-  const { reply, react, isSuperUser, config } = conText;
-  if (!isSuperUser) return reply("❌ Owner Only Command!");
+evt.commands.push({
+    pattern: "autolikestatus",
+    alias: ["als", "statusreact"],
+    desc: "Toggle Auto-Like Status",
+    react: "❤️",
+    category: "owner",
+    function: async (from, Gifted, conText) => {
+        const { args, isSuperUser, reply, botName, botCaption, newsletterUrl, botPrefix } = conText;
+        if (!isSuperUser) return reply("❌ This command is restricted to the Owner.");
 
-  try {
-    const val = config.AUTO_READ_STATUS === "true" ? "false" : "true";
-    config.AUTO_READ_STATUS = val;
+        let config = require(configPath);
+        const arg = args[0]?.toLowerCase();
 
-    let txt = fs.readFileSync(settingsPath, "utf-8");
-    txt = txt.replace(/AUTO_READ_STATUS\s*:\s*["'](true|false)["']/, `AUTO_READ_STATUS: "${val}"`);
-    fs.writeFileSync(settingsPath, txt);
+        if (arg === "on" || arg === "off") {
+            config.AUTO_LIKE_STATUS = arg === "on" ? "true" : "false";
+            fs.writeFileSync(configPath, "module.exports = " + JSON.stringify(config, null, 4));
+            
+            const status = arg === "on" ? "𝐄𝐍𝐀𝐁𝐋𝐄𝐃" : "𝐃𝐈𝐒𝐀𝐁𝐋𝐄𝐃";
+            const finalMsg = `
+✨ *𝐗-𝐆𝐔𝐑𝐔 𝐌𝐃 𝐂𝐎𝐍𝐓𝐑𝐎𝐋* ✨
 
-    await react("✅");
-    reply(`👀 Auto Read Status ${val === "true" ? "ENABLED" : "DISABLED"}`);
-  } catch (e) {
-    reply("❌ Failed");
-  }
+╔════════════════════════╗
+  *『 𝐒𝐓𝐀𝐓𝐔𝐒 𝐀𝐔𝐓𝐎𝐌𝐀𝐓𝐈𝐎𝐍 』*
+  
+  ⋄ 𝐌𝐨𝐝𝐮𝐥𝐞   : 𝐀𝐮𝐭𝐨 𝐋𝐢𝐤𝐞
+  ⋄ 𝐒𝐭𝐚𝐭𝐮𝐬   : ${status}
+  ⋄ 𝐒𝐲𝐬𝐭𝐞𝐦   : 𝐗-𝐆𝐔𝐑𝐔 𝐕𝟓
+╚════════════════════════╝
+
+> *${botCaption}*
+> *Developed by GuruTech*
+> *NI MBAYA 😅*`;
+
+            await Gifted.sendMessage(from, { 
+                text: finalMsg,
+                contextInfo: {
+                    externalAdReply: {
+                        title: `${botName} AUTOMATION`,
+                        body: "𝐒𝐭𝐚𝐭𝐮𝐬: 𝐍𝐈 𝐌𝐁𝐀𝐘𝐀 😅",
+                        thumbnailUrl: "https://files.catbox.moe/atpgij.jpg",
+                        sourceUrl: newsletterUrl,
+                        mediaType: 1,
+                        renderLargerThumbnail: true
+                    }
+                }
+            }, { quoted: conText.m });
+        } else {
+            return reply(`*Usage:*\n${botPrefix}autolikestatus on\n${botPrefix}autolikestatus off`);
+        }
+    }
 });
