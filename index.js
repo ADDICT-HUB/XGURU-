@@ -832,7 +832,7 @@ Gifted.getLidFromJid = async (jid) => {
 ╚════════════════════════╝
 
 > *${botCaption}*
-> *Developed by Maurice Gift*`;
+> *Developed by GuruTech*`;
 
                             await Gifted.sendMessage(
                                 Gifted.user.id,
