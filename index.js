@@ -102,14 +102,35 @@ const PORT = process.env.PORT || 4420;
 const app = express();
 let Gifted;
 
+// Set logger level
 logger.level = "silent";
 
+// --- START OF HEROKU BINDING FIX ---
 app.use(express.static("gift"));
-app.get("/", (req, res) => res.sendFile(__dirname + "/gift/gifted.html"));
-app.listen(PORT, () => console.log(`Server Running on Port: ${PORT}`));
 
+// Health check route for Heroku
+app.get("/", (req, res) => {
+    res.sendFile(path.join(__dirname, "gift", "gifted.html"));
+});
+
+// Bind to 0.0.0.0 to ensure Heroku detects the web process
+app.listen(PORT, "0.0.0.0", () => {
+    console.log(`
+╔══════════════════════════════════════════╗
+   🚀 SERVER INITIALIZED SUCCESSFULLY
+   ⋄ Port: ${PORT}
+   ⋄ Host: 0.0.0.0
+   ⋄ Status: NI MBAYA 😅
+╚══════════════════════════════════════════╝
+    `);
+});
+// --- END OF HEROKU BINDING FIX ---
+
+// Define session directory
 const sessionDir = path.join(__dirname, "gift", "session");
 
+// Load session and start logic
+console.log("📂 Loading session configuration...");
 loadSession();
 
 let store; 
