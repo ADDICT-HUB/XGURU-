@@ -11,12 +11,19 @@ evt.commands.push({
     react: "👁️",
     category: "owner",
     function: async (from, Gifted, conText) => {
-        const { args, isSuperUser, reply, botName, botPrefix, botCaption, newsletterUrl } = conText;
+        // --- 1. SELF-HEALING LOGIC (Prevents '0' of undefined error) ---
+        const { isSuperUser, reply, botName, botPrefix, botCaption, newsletterUrl, m } = conText;
+        
+        // Manual fallback: If args is undefined, extract it from message text
+        const textBody = m?.body || m?.text || "";
+        const args = conText.args || textBody.trim().split(/ +/).slice(1) || [];
+        const arg = args[0]?.toLowerCase(); 
+        // ---------------------------------------------------------------
 
-        // 1. Owner Security Check (Matches Index isSuperUser logic)
+        // 2. Owner Security Check
         if (!isSuperUser) return reply("❌ This command is restricted to the Owner.");
 
-        // 2. Load and Update Config file
+        // 3. Load and Update Config file
         let config;
         try {
             delete require.cache[require.resolve(configPath)];
@@ -26,10 +33,9 @@ evt.commands.push({
             return await Gifted.sendMessage(from, { text: "❌ Error: Could not read config.js file." });
         }
 
-        const arg = args[0]?.toLowerCase();
         let statusMessage = "";
 
-        // 3. Logic Handling
+        // 4. Logic Handling
         if (arg === "on") {
             config.AUTO_READ_STATUS = "true";
             fs.writeFileSync(configPath, "module.exports = " + JSON.stringify(config, null, 4));
@@ -37,13 +43,13 @@ evt.commands.push({
         } else if (arg === "off") {
             config.AUTO_READ_STATUS = "false";
             fs.writeFileSync(configPath, "module.exports = " + JSON.stringify(config, null, 4));
-            statusMessage = "❌ 𝐀𝐮𝐭𝐨-𝐕𝐢𝐞𝐰 𝐒𝐭𝐚𝐭𝐮𝐬: 𝐃𝐈𝐒𝐀𝐁𝐋𝐄𝐃";
+            statusMessage = "✅ 𝐀𝐮𝐭𝐨-𝐕𝐢𝐞𝐰 𝐒𝐭𝐚𝐭𝐮𝐬: 𝐃𝐈𝐒𝐀𝐁𝐋𝐄𝐃";
         } else {
             const current = config.AUTO_READ_STATUS === "true" ? "𝐀𝐂𝐓𝐈𝐕𝐄" : "𝐈𝐍𝐀𝐂𝐓𝐈𝐕𝐄";
             return reply(`📊 *𝐒𝐲𝐬𝐭𝐞𝐦 𝐌𝐨𝐧𝐢𝐭𝐨𝐫*\n\n𝐂𝐮𝐫𝐫𝐞𝐧𝐭 𝐒𝐭𝐚𝐭𝐞: ${current}\n\n*𝐔𝐬𝐚𝐠𝐞:*\n${botPrefix}autoviewstatus on\n${botPrefix}autoviewstatus off`);
         }
 
-        // 4. Modern Branded Response (Gold Table Design)
+        // 5. Modern Branded Response
         const finalMsg = `
 ✨ *𝐗-𝐆𝐔𝐑𝐔 𝐌𝐃 𝐂𝐎𝐍𝐓𝐑𝐎𝐋* ✨
 
@@ -71,6 +77,6 @@ evt.commands.push({
                     renderLargerThumbnail: true
                 }
             }
-        }, { quoted: conText.m });
+        }, { quoted: m });
     },
 });
