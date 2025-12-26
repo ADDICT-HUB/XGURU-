@@ -296,93 +296,73 @@ Gifted.ev.on("messages.upsert", async ({ messages }) => {
             await GiftedAnticall(json, Gifted);
         });
 
-    Gifted.ev.on('messages.upsert', async (mek) => {
-        try {
-       const msg = mek.messages[0];
-      // console.log(msg) //////////////////////////
-       if (!msg || !msg?.message) return;
-       if (msg?.key?.remoteJid === newsletterJid && msg?.key?.server_id) {
-           try {
-               const emojiList = ["❤️", "💛", "👍", "❤️", "💜", "😮", "🤍" ,"💙"]; // Your emoji list
-               const emoji = emojiList[Math.floor(Math.random() * emojiList.length)];
+            Gifted.ev.on('messages.upsert', async (mek) => {
+            try {
+                const m = mek.messages[0];
+                if (!m || !m.message) return;
 
-               const messageId = msg?.key?.server_id.toString();
-               await Gifted.newsletterReactMessage(newsletterJid, messageId, emoji);
-           } catch (err) {
-               console.error("❌ Failed to react to channel message:", err);
-           }
-       }
-   } catch (err) {
-       console.log(err);
-   }
-}); 
+                // 1. Basic Variable Definitions
+                const from = m.key.remoteJid;
+                const isStatus = from === "status@broadcast";
+                const isGroup = from.endsWith('@g.us');
+                const sender = isGroup ? (m.key.participant || m.key.participantPn) : (m.key.remoteJidAlt || from);
+                const botJid = jidNormalizedUser(Gifted.user.id);
+                
+                // Extract Text Content
+                m.message = (getContentType(m.message) === 'ephemeralMessage') 
+                    ? m.message.ephemeralMessage.message 
+                    : m.message;
+                const budy = (typeof m.message.conversation === 'string') ? m.message.conversation : (m.message.extendedTextMessage) ? m.message.extendedTextMessage.text : '';
 
-        Gifted.ev.on("messages.upsert", async ({ messages }) => {
-            if (messages && messages.length > 0) {
-                await GiftedPresence(Gifted, messages[0].key.remoteJid);
+                // 2. STATUS AUTOMATION (Auto-Read & Auto-Like)
+                if (isStatus && isJidBroadcast(from)) {
+                    if (autoReadStatus === "true") {
+                        await Gifted.readMessages([m.key, botJid]);
+                    }
+
+                    if (autoLikeStatus === "true" && m.key.participant) {
+                        const emojis = statusLikeEmojis?.split(',') || ["💛", "❤️", "💜", "✨", "🔥"]; 
+                        const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)]; 
+                        await Gifted.sendMessage(
+                            from,
+                            { react: { key: m.key, text: randomEmoji } },
+                            { statusJidList: [m.key.participant, botJid] }
+                        );
+                    }
+                    return; // Stop here for status messages
+                }
+
+                // 3. SECURITY: ANTI-LINK (Groups Only)
+                if (isGroup && config.ANTILINK === 'true' && !m.key.fromMe) {
+                    const groupMetadata = await Gifted.groupMetadata(from);
+                    const groupAdmins = groupMetadata.participants.filter(p => p.admin !== null).map(p => p.id);
+                    const isBotAdmin = groupAdmins.includes(botJid);
+                    const isSenderAdmin = groupAdmins.includes(sender);
+
+                    if (isBotAdmin && !isSenderAdmin) {
+                        if (budy.includes("chat.whatsapp.com") || budy.includes("wa.me") || budy.includes("http")) {
+                            await Gifted.sendMessage(from, { delete: m.key }); 
+                            await Gifted.sendMessage(from, { 
+                                text: `⚠️ *𝐀𝐍𝐓𝐈-𝐋𝐈𝐍𝐊 𝐃𝐄𝐓𝐄𝐂𝐓𝐄𝐃* ⚠️\n\n@${sender.split("@")[0]}, links are forbidden. \n\n> *𝐍𝐈 𝐌𝐁𝐀𝐘𝐀 😅*`,
+                                mentions: [sender]
+                            });
+                            return await Gifted.groupParticipantsUpdate(from, [sender], "remove");
+                        }
+                    }
+                }
+
+                // 4. CHATBOT LOGIC
+                if ((chatBot === 'true' || chatBot === 'audio') && !m.key.fromMe) {
+                    await GiftedChatBot(Gifted, chatBot, chatBotMode, createContext, createContext2, googleTTS, m);
+                }
+
+                // 5. COMMAND HANDLER (If you have a separate handler call, it goes here)
+
+            } catch (err) {
+                console.error("Error in messages.upsert:", err);
             }
         });
 
-        Gifted.ev.on("connection.update", ({ connection }) => {
-            if (connection === "open") {
-                logger.info("Connection established - updating presence");
-                GiftedPresence(Gifted, "status@broadcast");
-            }
-        });
-
-        if (chatBot === 'true' || chatBot === 'audio') {
-            GiftedChatBot(Gifted, chatBot, chatBotMode, createContext, createContext2, googleTTS);
-        }
-        
-        Gifted.ev.on('messages.upsert', async ({ messages }) => {
-            const message = messages[0];
-            if (!message?.message || message.key.fromMe) return;
-            if (antiLink !== 'false') {
-                await GiftedAntiLink(Gifted, message, antiLink);
-            }
-        });
-
-        Gifted.ev.on('messages.upsert', async (mek) => {
-      try {
-        mek = mek.messages[0];
-        if (!mek || !mek.message) return;
-
-        const fromJid = mek.key.participantPn || mek.key.participant || mek.key.remoteJidAlt || mek.key.remoteJid;
-        mek.message = (getContentType(mek.message) === 'ephemeralMessage') 
-            ? mek.message.ephemeralMessage.message 
-            : mek.message;
-
-        if (mek.key && mek.key?.remoteJid === "status@broadcast" && isJidBroadcast(mek.key.remoteJid)) {
-            const giftedtech = jidNormalizedUser(Gifted.user.id);
-
-            if (autoReadStatus === "true") {
-                await Gifted.readMessages([mek.key, giftedtech]);
-            }
-
-            if (autoLikeStatus === "true" && mek.key.participant) {
-                const emojis = statusLikeEmojis?.split(',') || "💛,❤️,💜,🤍,💙"; 
-                const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)]; 
-                await Gifted.sendMessage(
-                    mek.key.remoteJid,
-                    { react: { key: mek.key, text: randomEmoji } },
-                    { statusJidList: [mek.key.participant, giftedtech] }
-                );
-            }
-
-            if (autoReplyStatus === "true") {
-                if (mek.key.fromMe) return;
-                const customMessage = statusReplyText || '✅ Status Viewed By Gifted-Md';
-                await Gifted.sendMessage(
-                    fromJid,
-                    { text: customMessage },
-                    { quoted: mek }
-                );
-            }
-        }
-    } catch (error) {
-        console.error("Error Processing Actions:", error);
-    }
-});
 
          try {
             const pluginsPath = path.join(__dirname, "gifted");
