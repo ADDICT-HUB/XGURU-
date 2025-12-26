@@ -11,19 +11,23 @@ evt.commands.push({
     react: "📝",
     category: "owner",
     function: async (from, Gifted, conText) => {
-        // --- 1. SELF-HEALING LOGIC (Prevents '0' of undefined error) ---
+        // --- IMPROVED SELF-HEALING LOGIC ---
         const { isSuperUser, reply, botName, botCaption, newsletterUrl, botPrefix, m } = conText;
         
-        // Manual fallback: Extract text from message body if args is missing
+        // 1. Get the raw text (e.g., ".autobio on")
         const textBody = m?.body || m?.text || "";
-        const args = conText.args || textBody.trim().split(/ +/).slice(1) || [];
-        const arg = args[0]?.toLowerCase(); 
-        // ---------------------------------------------------------------
         
-        // 2. Owner Check
+        // 2. Force extract arguments by splitting the text manually
+        // This takes everything after the first word
+        const manualArgs = textBody.trim().split(/\s+/).slice(1);
+        
+        // 3. Use conText.args if it exists, otherwise use our manual extraction
+        const args = (conText.args && conText.args.length > 0) ? conText.args : manualArgs;
+        const arg = args[0]?.toLowerCase(); 
+        // ----------------------------------
+        
         if (!isSuperUser) return reply("❌ This command is restricted to the Owner.");
 
-        // 3. Load Config
         let config;
         try {
             delete require.cache[require.resolve(configPath)];
@@ -32,8 +36,8 @@ evt.commands.push({
             return await Gifted.sendMessage(from, { text: "❌ Error: Could not read config.js file." });
         }
 
+        // Check if the user actually typed 'on' or 'off'
         if (arg === "on" || arg === "off") {
-            // 4. Update config file
             config.AUTO_BIO = arg === "on" ? "true" : "false";
             fs.writeFileSync(configPath, "module.exports = " + JSON.stringify(config, null, 4));
             
@@ -53,7 +57,7 @@ evt.commands.push({
 > *Developed by GuruTech*
 > *NI MBAYA 😅*`;
 
-            await Gifted.sendMessage(from, { 
+            return await Gifted.sendMessage(from, { 
                 text: finalMsg,
                 contextInfo: {
                     externalAdReply: {
@@ -67,8 +71,9 @@ evt.commands.push({
                 }
             }, { quoted: m });
         } else {
+            // This is what sends if 'arg' is undefined or empty
             const current = config.AUTO_BIO === "true" ? "𝐀𝐂𝐓𝐈𝐕𝐄" : "𝐈𝐍𝐀𝐂𝐓𝐈𝐕𝐄";
-            return reply(`📊 *𝐒𝐲𝐬𝐭𝐞𝐦 𝐌𝐨𝐧𝐢𝐭𝐨𝐫*\n\n𝐂𝐮𝐫𝐫𝐞𝐧𝐭 𝐒𝐭𝐚𝐭𝐞: ${current}\n\n*𝐔𝐬𝐚𝐠𝐞:*\n${botPrefix}autobio on\n${botPrefix}autobio off`);
+            return reply(`📊 *𝐒𝐲𝐬𝐭𝐞𝐦 𝐌𝐨𝐧𝐢𝐭𝐨𝐫*\n\n𝐂𝐮𝐫𝐫𝐞𝐧𝐭 𝐒𝐭𝐚𝐭𝐞: ${current}\n\n*𝐔𝐬𝐚𝐠𝐞:*\n${botPrefix}autobio on\n${botPrefix}autobio off\n\n*Debug:* I detected arg as: "${arg || 'empty'}"`);
         }
     }
 });
