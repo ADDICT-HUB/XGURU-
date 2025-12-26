@@ -793,7 +793,6 @@ Gifted.getLidFromJid = async (jid) => {
             }
             
         });
-
         Gifted.ev.on("connection.update", async (update) => {
             const { connection, lastDisconnect } = update;
             
@@ -816,7 +815,7 @@ Gifted.getLidFromJid = async (jid) => {
                         if (startMess === 'true') {
                             const md = botMode === 'public' ? "𝐏𝐮𝐛𝐥𝐢𝐜" : "𝐏𝐫𝐢𝐯𝐚𝐭𝐞";
                             
-                            // The "NI MBAYA" Table Structure
+                            // The "NI MBAYA" Table Structure with Channel Link
                             const connectionMsg = `
 ✨ *𝐗-𝐆𝐔𝐑𝐔 𝐌𝐃 𝐈𝐍𝐓𝐄𝐆𝐑𝐀𝐓𝐄𝐃* ✨
 
@@ -831,6 +830,9 @@ Gifted.getLidFromJid = async (jid) => {
   ⋄ 𝐎𝐰𝐧𝐞𝐫    : ${ownerNumber}
 ╚════════════════════════╝
 
+📢 *𝐉𝐎𝐈𝐍 𝐎𝐔𝐑 𝐂𝐇𝐀𝐍𝐍𝐄𝐋*
+${newsletterUrl}
+
 > *${botCaption}*
 > *Developed by GuruTech*`;
 
@@ -841,9 +843,9 @@ Gifted.getLidFromJid = async (jid) => {
                                     contextInfo: {
                                         externalAdReply: {
                                             title: "𝐗-𝐆𝐔𝐑𝐔 𝐌𝐃 𝐕𝟓 𝐒𝐔𝐂𝐂𝐄𝐒𝐒",
-                                            body: "𝐒𝐭𝐚𝐭𝐮𝐬: 𝐍𝐈 𝐌𝐁𝐀𝐘𝐀 😅",
+                                            body: "𝐉𝐨𝐢𝐧 𝐎𝐮𝐫 𝐎𝐟𝐟𝐢𝐜𝐢𝐚𝐥 𝐂𝐡𝐚𝐧𝐧𝐞𝐥 📢",
                                             thumbnailUrl: "https://files.catbox.moe/52699c.jpg",
-                                            sourceUrl: "https://whatsapp.com/channel/0029Vb3hlgX5kg7G0nFggl0Y",
+                                            sourceUrl: newsletterUrl,
                                             mediaType: 1,
                                             renderLargerThumbnail: true
                                         }
