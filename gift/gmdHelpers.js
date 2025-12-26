@@ -15,7 +15,7 @@ const createContext = (userJid, options = {}) => ({
         },
         externalAdReply: {
             title: options.title || config.BOT_NAME,
-            body: options.body || "Powered by GiftedTech",
+            body: options.body || "Powered by GuruTech",
             thumbnailUrl: config.BOT_PIC,
             mediaType: 1,
             mediaUrl: options.mediaUrl || config.BOT_PIC,
@@ -40,7 +40,7 @@ const createContext2 = (userJid, options = {}) => ({
         },
         externalAdReply: {
             title: options.title || config.BOT_NAME,
-            body: options.body || "Powered by Gifted Tech",
+            body: options.body || "Powered by Guru Tech",
             thumbnailUrl: config.BOT_PIC,
             mediaType: 1,
             showAdAttribution: true,
