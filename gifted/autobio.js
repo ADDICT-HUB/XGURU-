@@ -1,79 +1,60 @@
 const { evt } = require("../gift");
 const fs = require("fs");
 const path = require("path");
-
 const configPath = path.join(__dirname, "../config.js");
 
+// 1. THE COMMAND (To Toggle On/Off)
 evt.commands.push({
     pattern: "autobio",
     alias: ["abio"],
-    desc: "Toggle Auto-Bio update for X-GURU MD",
-    react: "📝",
     category: "owner",
     function: async (from, Gifted, conText) => {
-        // --- IMPROVED SELF-HEALING LOGIC ---
-        const { isSuperUser, reply, botName, botCaption, newsletterUrl, botPrefix, m } = conText;
-        
-        // 1. Get the raw text (e.g., ".autobio on")
-        const textBody = m?.body || m?.text || "";
-        
-        // 2. Force extract arguments by splitting the text manually
-        // This takes everything after the first word
-        const manualArgs = textBody.trim().split(/\s+/).slice(1);
-        
-        // 3. Use conText.args if it exists, otherwise use our manual extraction
-        const args = (conText.args && conText.args.length > 0) ? conText.args : manualArgs;
-        const arg = args[0]?.toLowerCase(); 
-        // ----------------------------------
-        
-        if (!isSuperUser) return reply("❌ This command is restricted to the Owner.");
+        const { isSuperUser, reply, m, botPrefix } = conText;
+        if (!isSuperUser) return;
 
-        let config;
-        try {
-            delete require.cache[require.resolve(configPath)];
-            config = require(configPath);
-        } catch (e) {
-            return await Gifted.sendMessage(from, { text: "❌ Error: Could not read config.js file." });
-        }
+        const text = (m.body || m.text || "").toLowerCase();
+        
+        // Load fresh config
+        delete require.cache[require.resolve(configPath)];
+        let config = require(configPath);
 
-        // Check if the user actually typed 'on' or 'off'
-        if (arg === "on" || arg === "off") {
-            config.AUTO_BIO = arg === "on" ? "true" : "false";
+        if (text.includes("on")) {
+            config.AUTO_BIO = "true";
             fs.writeFileSync(configPath, "module.exports = " + JSON.stringify(config, null, 4));
-            
-            const status = arg === "on" ? "𝐄𝐍𝐀𝐁𝐋𝐄𝐃" : "𝐃𝐈𝐒𝐀𝐁𝐋𝐄𝐃";
-            const finalMsg = `
-✨ *𝐗-𝐆𝐔𝐑𝐔 𝐌𝐃 𝐂𝐎𝐍𝐓𝐑𝐎𝐋* ✨
-
-╔════════════════════════╗
-  *『 𝐏𝐑𝐎𝐅𝐈𝐋𝐄 𝐀𝐔𝐓𝐎𝐌𝐀𝐓𝐈𝐎𝐍 』*
-  
-  ⋄ 𝐌𝐨𝐝𝐮𝐥𝐞   : 𝐀𝐮𝐭𝐨 𝐁𝐢𝐨
-  ⋄ 𝐒𝐭𝐚𝐭𝐮𝐬   : ${status}
-  ⋄ 𝐒𝐲𝐬𝐭𝐞𝐦   : 𝐗-𝐆𝐔𝐑𝐔 𝐕𝟓
-╚════════════════════════╝
-
-> *${botCaption}*
-> *Developed by GuruTech*
-> *NI MBAYA 😅*`;
-
-            return await Gifted.sendMessage(from, { 
-                text: finalMsg,
-                contextInfo: {
-                    externalAdReply: {
-                        title: `${botName} AUTOMATION`,
-                        body: "𝐒𝐭𝐚𝐭𝐮𝐬: 𝐍𝐈 𝐌𝐁𝐀𝐘𝐀 😅",
-                        thumbnailUrl: "https://files.catbox.moe/atpgij.jpg",
-                        sourceUrl: newsletterUrl,
-                        mediaType: 1,
-                        renderLargerThumbnail: true
-                    }
-                }
-            }, { quoted: m });
+            return reply(`✅ *𝐀𝐮𝐭𝐨-𝐁𝐢𝐨 𝐄𝐧𝐚𝐛𝐥𝐞𝐝*\n${config.botName || 'Bot'} will now update your bio every minute.`);
+        } else if (text.includes("off")) {
+            config.AUTO_BIO = "false";
+            fs.writeFileSync(configPath, "module.exports = " + JSON.stringify(config, null, 4));
+            return reply("❌ *𝐀𝐮𝐭𝐨-𝐁𝐢𝐨 𝐃𝐢𝐬𝐚𝐛𝐥𝐞𝐝*");
         } else {
-            // This is what sends if 'arg' is undefined or empty
-            const current = config.AUTO_BIO === "true" ? "𝐀𝐂𝐓𝐈𝐕𝐄" : "𝐈𝐍𝐀𝐂𝐓𝐈𝐕𝐄";
-            return reply(`📊 *𝐒𝐲𝐬𝐭𝐞𝐦 𝐌𝐨𝐧𝐢𝐭𝐨𝐫*\n\n𝐂𝐮𝐫𝐫𝐞𝐧𝐭 𝐒𝐭𝐚𝐭𝐞: ${current}\n\n*𝐔𝐬𝐚𝐠𝐞:*\n${botPrefix}autobio on\n${botPrefix}autobio off\n\n*Debug:* I detected arg as: "${arg || 'empty'}"`);
+            const status = config.AUTO_BIO === "true" ? "𝐀𝐂𝐓𝐈𝐕𝐄" : "𝐈𝐍𝐀𝐂𝐓𝐈𝐕𝐄";
+            return reply(`📊 *𝐒𝐲𝐬𝐭𝐞𝐦 𝐌𝐨𝐧𝐢𝐭𝐨𝐫*\n\n𝐂𝐮𝐫𝐫𝐞𝐧𝐭 𝐒𝐭𝐚𝐭𝐞: ${status}\n\nUsage: ${botPrefix}autobio on/off`);
         }
     }
 });
+
+// 2. THE BACKGROUND LOOP (Self-Starting)
+setInterval(async () => {
+    try {
+        // Load config inside the interval to catch name changes
+        delete require.cache[require.resolve(configPath)];
+        const config = require(configPath);
+        
+        if (config.AUTO_BIO !== "true") return;
+
+        // Get current Time and Date
+        const date = new Date();
+        const time = date.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' });
+        const day = date.toLocaleDateString('en-GB', { weekday: 'long' });
+        const botName = config.botName || "X-GURU MD";
+
+        // Your custom Bio content with Bot Name
+        const newBio = `${botName} ⚡ Active: ${time} | Day: ${day} | NI MBAYA 😅`;
+
+        // Update the WhatsApp Bio
+        await Gifted.updateProfileStatus(newBio);
+
+    } catch (err) {
+        // Silently fail if connection isn't ready
+    }
+}, 60000); // Runs every 60 seconds
