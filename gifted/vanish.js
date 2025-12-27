@@ -1,41 +1,27 @@
 const { evt } = require("../gift");
 
 evt.commands.push({
-    pattern: "hidetag",
-    alias: ["htag", "tagall"],
-    category: "group",
-    desc: "Tags all group members invisibly",
+    pattern: "vanish",
+    desc: "Send a message that self-destructs",
+    category: "advanced",
     function: async (from, Gifted, conText) => {
-        const { args, isSuperUser, isBotAdmin, reply, m, quoted } = conText;
+        const { args, reply, isSuperUser } = conText;
+        if (!isSuperUser) return;
 
-        // 1. Security & Context Checks
-        if (!from.endsWith('@g.us')) return reply("❌ This command is for Groups only.");
-        
-        // Ensure only Admin or Owner can use this to prevent spam
-        const groupMetadata = await Gifted.groupMetadata(from);
-        const admins = groupMetadata.participants.filter(p => p.admin).map(p => p.id);
-        const isSenderAdmin = admins.includes(m.sender);
-        
-        if (!isSuperUser && !isSenderAdmin) return reply("❌ Admins only can use Hidetag.");
+        const seconds = parseInt(args[0]);
+        const text = args.slice(1).join(" ");
 
-        // 2. Collect all participant JIDs
-        const participants = groupMetadata.participants.map(mem => mem.id);
-        
-        // 3. Determine message content (Text or Quoted Media)
-        const messageText = args.join(" ") || (quoted ? "" : "📢 *Attention Everyone!*");
+        if (isNaN(seconds) || !text) return reply("Usage: .vanish [seconds] [message]\nExample: .vanish 10 This will disappear!");
 
-        if (quoted) {
-            // If replying to a message, forward that message with tags
+        const sentMsg = await Gifted.sendMessage(from, { 
+            text: `📝 *𝐒𝐄𝐋𝐅-𝐃𝐄𝐒𝐓𝐑𝐔𝐂𝐓 𝐌𝐄𝐒𝐒𝐀𝐆𝐄*\n\n${text}\n\n⏱️ _Disappearing in ${seconds} seconds..._` 
+        });
+
+        // Advanced: Timer to delete the message automatically
+        setTimeout(async () => {
             await Gifted.sendMessage(from, { 
-                forward: quoted, 
-                contextInfo: { mentionedJid: participants } 
+                delete: sentMsg.key 
             });
-        } else {
-            // Send new text message with invisible tags
-            await Gifted.sendMessage(from, { 
-                text: `${messageText}\n\n> *𝐍𝐈 𝐌𝐁𝐀𝐘𝐀 😅*`, 
-                mentions: participants 
-            });
-        }
+        }, seconds * 1000);
     }
 });
