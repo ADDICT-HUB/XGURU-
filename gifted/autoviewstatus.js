@@ -1,82 +1,33 @@
-const { evt } = require("../gift"); 
-const fs = require("fs");
-const path = require("path");
-
-const configPath = path.join(__dirname, "../config.js");
+const { evt } = require("../gift");
+const config = require("../config");
 
 evt.commands.push({
-    pattern: "autoviewstatus",
-    alias: ["avs", "statusview"],
-    desc: "Toggle Auto-View Status for X GURU",
-    react: "👁️",
-    category: "owner",
-    function: async (from, Gifted, conText) => {
-        // --- 1. SELF-HEALING LOGIC (Prevents '0' of undefined error) ---
-        const { isSuperUser, reply, botName, botPrefix, botCaption, newsletterUrl, m } = conText;
-        
-        // Manual fallback: If args is undefined, extract it from message text
-        const textBody = m?.body || m?.text || "";
-        const args = conText.args || textBody.trim().split(/ +/).slice(1) || [];
-        const arg = args[0]?.toLowerCase(); 
-        // ---------------------------------------------------------------
+    on: "all",
+    function: async (from, Gifted, m) => {
+        // Filter for status updates only
+        if (from !== 'status@broadcast') return;
 
-        // 2. Owner Security Check
-        if (!isSuperUser) return reply("❌ This command is restricted to the Owner.");
-
-        // 3. Load and Update Config file
-        let config;
         try {
-            delete require.cache[require.resolve(configPath)];
-            config = require(configPath);
-        } catch (e) {
-            console.error("Config Load Error:", e);
-            return await Gifted.sendMessage(from, { text: "❌ Error: Could not read config.js file." });
-        }
-
-        let statusMessage = "";
-
-        // 4. Logic Handling
-        if (arg === "on") {
-            config.AUTO_READ_STATUS = "true";
-            fs.writeFileSync(configPath, "module.exports = " + JSON.stringify(config, null, 4));
-            statusMessage = "✅ 𝐀𝐮𝐭𝐨-𝐕𝐢𝐞𝐰 𝐒𝐭𝐚𝐭𝐮𝐬: 𝐄𝐍𝐀𝐁𝐋𝐄𝐃";
-        } else if (arg === "off") {
-            config.AUTO_READ_STATUS = "false";
-            fs.writeFileSync(configPath, "module.exports = " + JSON.stringify(config, null, 4));
-            statusMessage = "✅ 𝐀𝐮𝐭𝐨-𝐕𝐢𝐞𝐰 𝐒𝐭𝐚𝐭𝐮𝐬: 𝐃𝐈𝐒𝐀𝐁𝐋𝐄𝐃";
-        } else {
-            const current = config.AUTO_READ_STATUS === "true" ? "𝐀𝐂𝐓𝐈𝐕𝐄" : "𝐈𝐍𝐀𝐂𝐓𝐈𝐕𝐄";
-            return reply(`📊 *𝐒𝐲𝐬𝐭𝐞𝐦 𝐌𝐨𝐧𝐢𝐭𝐨𝐫*\n\n𝐂𝐮𝐫𝐫𝐞𝐧𝐭 𝐒𝐭𝐚𝐭𝐞: ${current}\n\n*𝐔𝐬𝐚𝐠𝐞:*\n${botPrefix}autoviewstatus on\n${botPrefix}autoviewstatus off`);
-        }
-
-        // 5. Modern Branded Response
-        const finalMsg = `
-✨ *𝐗-𝐆𝐔𝐑𝐔 𝐌𝐃 𝐂𝐎𝐍𝐓𝐑𝐎𝐋* ✨
-
-╔════════════════════════╗
-  *『 𝐒𝐓𝐀𝐓𝐔𝐒 𝐀𝐔𝐓𝐎𝐌𝐀𝐓𝐈𝐎𝐍 』*
-  
-  ⋄ 𝐌𝐨𝐝𝐮𝐥𝐞   : 𝐀𝐮𝐭𝐨 𝐕𝐢𝐞𝐰
-  ⋄ 𝐒𝐭𝐚𝐭𝐮𝐬   : ${statusMessage}
-  ⋄ 𝐒𝐲𝐬𝐭𝐞𝐦   : 𝐗-𝐆𝐔𝐑𝐔 𝐕𝟓
-╚════════════════════════╝
-
-> *${botCaption}*
-> *Developed by GuruTech*
-> *NI MBAYA 😅*`;
-
-        await Gifted.sendMessage(from, { 
-            text: finalMsg,
-            contextInfo: {
-                externalAdReply: {
-                    title: `${botName} AUTOMATION`,
-                    body: "𝐒𝐭𝐚𝐭𝐮𝐬: 𝐍𝐈 𝐌𝐁𝐀𝐘𝐀 😅",
-                    thumbnailUrl: "https://files.catbox.moe/atpgij.jpg",
-                    sourceUrl: newsletterUrl,
-                    mediaType: 1,
-                    renderLargerThumbnail: true
-                }
+            // Auto View Logic
+            if (config.AUTO_READ_STATUS === "true") {
+                await Gifted.readMessages([m.key]);
             }
-        }, { quoted: m });
-    },
+
+            // Auto Like Logic
+            if (config.AUTO_LIKE_STATUS === "true") {
+                const emojiList = config.STATUS_LIKE_EMOJIS?.split(',') || ["❤️", "✨", "😅", "🔥"];
+                const selectedEmoji = emojiList[Math.floor(Math.random() * emojiList.length)];
+                
+                await Gifted.sendMessage(from, {
+                    react: { text: selectedEmoji, key: m.key }
+                }, { 
+                    statusJidList: [m.key.participant, Gifted.user.id.split(':')[0] + '@s.whatsapp.net'] 
+                });
+            }
+        } catch (e) {
+            console.error("Status automation error:", e);
+        }
+    }
 });
+
+// > *𝐍𝐈 𝐌𝐁𝐀𝐘𝐀 😅*
