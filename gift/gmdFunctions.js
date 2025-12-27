@@ -41,9 +41,22 @@ function runtime(seconds) {
     return (d > 0 ? d + 'd ' : '') + (h > 0 ? h + 'h ' : '') + (m > 0 ? m + 'm ' : '') + s + 's';
 }
 
+/**
+ * FANCY TEXT LOGIC (FIXES REFERENCE ERROR)
+ */
+function gmdFancy(text) {
+    if (!text || typeof text !== 'string') return '';
+    const fancyMap = {
+        'A': '𝓐', 'B': '𝓑', 'C': '𝓒', 'D': '𝓓', 'E': '𝓔', 'F': '𝓕', 'G': '𝓖', 'H': '𝓗', 'I': '𝓘', 'J': '𝓙', 'K': '𝓚', 'L': '𝓛', 'M': '𝓜', 'N': '𝓝', 'O': '𝓞', 'P': '𝓟', 'Q': '𝓠', 'R': '𝓡', 'S': '𝓢', 'T': '𝓣', 'U': '𝓤', 'V': '𝓥', 'W': '𝓦', 'X': '𝓧', 'Y': '𝓨', 'Z': '𝓩',
+        'a': '𝓪', 'b': '𝓫', 'c': '𝓬', 'd': '𝓭', 'e': '𝓮', 'f': '𝓯', 'g': '𝓰', 'h': '𝓱', 'i': '𝓲', 'j': '𝓳', 'k': '𝓴', 'l': '𝓵', 'm': '𝓶', 'n': '𝓷', 'o': '𝓸', 'p': '𝓹', 'q': '𝓺', 'r': '𝓻', 's': '𝓼', 't': '𝓽', 'u': '𝓾', 'v': '𝓿', 'w': '𝔀', 'x': '𝔁', 'y': '𝔂', 'z': '𝔃',
+        '0': '𝟎', '1': '𝟏', '2': '𝟐', '3': '𝟑', '4': '𝟒', '5': '𝟓', '6': '𝟔', '7': '𝟕', '8': '𝟖', '9': '𝟗',
+        ' ': ' '
+    };
+    return text.split('').map(char => fancyMap[char] || char).join('');
+}
+
 function monospace(input) {
     if (!input || typeof input !== 'string') return ''; 
-
     const boldz = {
         'A': '𝙰', 'B': '𝙱', 'C': '𝙲', 'D': '𝙳', 'E': '𝙴', 'F': '𝙵', 'G': '𝙶', 'H': '𝙷', 'I': '𝙸', 'J': '𝙹', 'K': '𝙺', 'L': '𝙻', 'M': '𝙼', 'N': '𝙽', 'O': '𝙾', 'P': '𝙿', 'Q': '𝚀', 'R': '𝚁', 'S': '𝚂', 'T': '𝚃', 'U': '𝚄', 'V': '𝚅', 'W': '𝚆', 'X': '𝚇', 'Y': '𝚈', 'Z': '𝚉',
         'a': '𝚊', 'b': '𝚋', 'c': '𝚌', 'd': '𝚍', 'e': '𝚎', 'f': '𝚏', 'g': '𝚐', 'h': '𝚑', 'i': '𝚒', 'j': '𝚓', 'k': '𝚔', 'l': '𝚕', 'm': '𝚖', 'n': '𝚗', 'o': '𝚘', 'p': '𝚙', 'q': '𝚚', 'r': '𝚛', 's': '𝚜', 't': '𝚝', 'u': '𝚞', 'v': '𝚟', 'w': '𝚠', 'x': '𝚡', 'y': '𝚢', 'z': '𝚣',
@@ -79,24 +92,23 @@ function getPerformanceInfo() {
 async function getFileBuffer(pathOrUrl) {
   try {
     if (!pathOrUrl) return null;
-
-    // Remote image
     if (pathOrUrl.startsWith("http")) {
       const res = await axios.get(pathOrUrl, { responseType: "arraybuffer" });
       return Buffer.from(res.data);
     }
-
-    // Local file
     if (fs.existsSync(pathOrUrl)) {
       return fs.readFileSync(pathOrUrl);
     }
-
     return null;
   } catch (err) {
     console.error("getFileBuffer Error:", err.message);
     return null;
   }
 }
+
+// Fixed missing exports
+const gmdBuffer = async (url) => await getFileBuffer(url);
+const gmdJson = async (url) => (await axios.get(url)).data;
 
 async function withTempFiles(inputBuffer, extension, processFn) {
   if (!fs.existsSync('gift/temp')) fs.mkdirSync('gift/temp', { recursive: true });
@@ -255,91 +267,33 @@ async function formatVideo(buffer) {
 
 async function stickerToImage(webpData, options = {}) {
     try {
-        const {
-            upscale = true,
-            targetSize = 512, 
-            framesToProcess = 200
-        } = options;
-
+        const { upscale = true, targetSize = 512, framesToProcess = 200 } = options;
         if (Buffer.isBuffer(webpData)) {
-            const sharpInstance = sharp(webpData, {
-                sequentialRead: true,
-                animated: true,
-                limitInputPixels: false,
-                pages: framesToProcess 
-            });
-
+            const sharpInstance = sharp(webpData, { sequentialRead: true, animated: true, limitInputPixels: false, pages: framesToProcess });
             const metadata = await sharpInstance.metadata();
             const isAnimated = metadata.pages > 1 || metadata.hasAlpha;
-
             if (isAnimated) {
-                return await sharpInstance
-                    .gif({
-                        compressionLevel: 0,
-                        quality: 100,
-                        effort: 1, 
-                        loop: 0 
-                    })
-                    .resize({
-                        width: upscale ? targetSize : metadata.width,
-                        height: upscale ? targetSize : metadata.height,
-                        fit: 'contain',
-                        background: { r: 0, g: 0, b: 0, alpha: 0 },
-                        kernel: 'lanczos3' 
-                    })
-                    .toBuffer();
+                return await sharpInstance.gif({ compressionLevel: 0, quality: 100, effort: 1, loop: 0 }).resize({ width: upscale ? targetSize : metadata.width, height: upscale ? targetSize : metadata.height, fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 }, kernel: 'lanczos3' }).toBuffer();
             } else {
-                return await sharpInstance
-                    .ensureAlpha()
-                    .resize({
-                        width: upscale ? targetSize : metadata.width,
-                        height: upscale ? targetSize : metadata.height,
-                        fit: 'contain',
-                        background: { r: 0, g: 0, b: 0, alpha: 0 },
-                        kernel: 'lanczos3'
-                    })
-                    .png({
-                        compressionLevel: 0,
-                        quality: 100,
-                        progressive: false,
-                        palette: true
-                    })
-                    .toBuffer();
+                return await sharpInstance.ensureAlpha().resize({ width: upscale ? targetSize : metadata.width, height: upscale ? targetSize : metadata.height, fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 }, kernel: 'lanczos3' }).png({ compressionLevel: 0, quality: 100, progressive: false, palette: true }).toBuffer();
             }
-        }
-        else if (typeof webpData === 'string') {
+        } else if (typeof webpData === 'string') {
             if (!fs.existsSync(webpData)) throw new Error('File not found');
-            const sharpInstance = sharp(webpData, {
-                sequentialRead: true,
-                animated: true,
-                limitInputPixels: false,
-                pages: framesToProcess
-            });
-
+            const sharpInstance = sharp(webpData, { sequentialRead: true, animated: true, limitInputPixels: false, pages: framesToProcess });
             const metadata = await sharpInstance.metadata();
             const isAnimated = metadata.pages > 1 || metadata.hasAlpha;
             const outputPath = webpData.replace(/\.webp$/, isAnimated ? '.gif' : '.png');
-
             if (isAnimated) {
-                await sharpInstance
-                    .gif({ compressionLevel: 0, quality: 100, effort: 1, loop: 0 })
-                    .resize({ width: upscale ? targetSize : metadata.width, height: upscale ? targetSize : metadata.height, fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-                    .toFile(outputPath);
+                await sharpInstance.gif({ compressionLevel: 0, quality: 100, effort: 1, loop: 0 }).resize({ width: upscale ? targetSize : metadata.width, height: upscale ? targetSize : metadata.height, fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }).toFile(outputPath);
             } else {
-                await sharpInstance
-                    .ensureAlpha()
-                    .resize({ width: upscale ? targetSize : metadata.width, height: upscale ? targetSize : metadata.height, fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-                    .png({ compressionLevel: 0, quality: 100 })
-                    .toFile(outputPath);
+                await sharpInstance.ensureAlpha().resize({ width: upscale ? targetSize : metadata.width, height: upscale ? targetSize : metadata.height, fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }).png({ compressionLevel: 0, quality: 100 }).toFile(outputPath);
             }
-
             const imageBuffer = await fs.promises.readFile(outputPath);
             await fs.promises.unlink(outputPath);
             await fs.promises.unlink(webpData); 
             return imageBuffer;
-        }
-        else {
-            throw new Error('Invalid input type for stickerToImage');
+        } else {
+            throw new Error('Invalid input type');
         }
     } catch (error) {
         console.error('Error in stickerToImage:', error);
