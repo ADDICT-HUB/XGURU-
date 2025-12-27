@@ -1,7 +1,9 @@
-const { evt } = require("../gift");
+const { gmd, evt } = require("../gift");
 const config = require("../config");
 const fs = require("fs");
 const path = require("path");
+
+// NI MBAYA 😅
 
 // Store mode state
 let botMode = config.MODE || "public"; // Default to public
@@ -13,16 +15,34 @@ const updateConfigMode = (newMode) => {
         let configContent = fs.readFileSync(configPath, "utf8");
         
         // Update MODE value in config
-        if (configContent.includes("MODE:")) {
-            configContent = configContent.replace(
-                /MODE:\s*["'].*?["']/,
-                `MODE: "${newMode}"`
-            );
-        } else if (configContent.includes("MODE =")) {
-            configContent = configContent.replace(
-                /MODE\s*=\s*["'].*?["']/,
-                `MODE = "${newMode}"`
-            );
+        const patterns = [
+            /MODE:\s*["'].*?["']/,
+            /MODE\s*=\s*["'].*?["']/,
+            /MODE:\s*(public|private)/,
+            /MODE\s*=\s*(public|private)/
+        ];
+        
+        let updated = false;
+        for (const pattern of patterns) {
+            if (pattern.test(configContent)) {
+                if (pattern.toString().includes(":")) {
+                    configContent = configContent.replace(pattern, `MODE: "${newMode}"`);
+                } else {
+                    configContent = configContent.replace(pattern, `MODE = "${newMode}"`);
+                }
+                updated = true;
+                break;
+            }
+        }
+        
+        // If MODE doesn't exist, add it
+        if (!updated) {
+            if (configContent.includes("module.exports")) {
+                configContent = configContent.replace(
+                    /(module\.exports\s*=\s*{[^}]*)(})/s,
+                    `$1  MODE: "${newMode}",\n$2`
+                );
+            }
         }
         
         fs.writeFileSync(configPath, configContent, "utf8");
@@ -35,112 +55,162 @@ const updateConfigMode = (newMode) => {
     }
 };
 
-// Command to change mode
-evt.commands.push({
-    name: "mode",
-    description: "Switch bot mode between public and private",
-    category: "owner",
-    usage: "mode <public|private>",
-    function: async (sock, m, { args, isOwner, reply }) => {
+// Command to change mode - FIXED: Using gmd() instead of evt.commands.push
+gmd(
+    {
+        pattern: "mode",
+        description: "Switch bot mode between public and private",
+        category: "owner",
+        usage: "mode <public|private>",
+        react: "🔧",
+        alias: ["botmode", "setmode"]
+    },
+    async (from, Gifted, conText) => {
         try {
-            // Check if user is owner
-            if (!isOwner) {
-                return await reply("❌ This command is only for bot owner!");
+            const { reply, isSuperUser, text, botPrefix } = conText;
+            
+            // Check if user is owner/superuser
+            if (!isSuperUser) {
+                return await reply("❌ *Owner Only Command!*");
             }
             
+            const args = text ? text.trim().split(/\s+/).filter(Boolean) : [];
             const newMode = args[0]?.toLowerCase();
             
             // Show current mode if no argument
             if (!newMode) {
+                const modeInfo = botMode === "private" 
+                    ? "🔒 *PRIVATE* - Only you can use commands"
+                    : "🌍 *PUBLIC* - Everyone can use commands";
+                
                 return await reply(
-                    `*Current Mode:* ${botMode.toUpperCase()}\n\n` +
-                    `📌 *Usage:* ${config.PREFIX}mode <public|private>\n\n` +
-                    `*Modes:*\n` +
+                    `*🤖 Bot Mode Status*\n\n` +
+                    `📊 *Current Mode:* ${modeInfo}\n\n` +
+                    `⚙️ *Usage:* ${botPrefix || '.'}mode <public|private>\n\n` +
+                    `📖 *Mode Types:*\n` +
                     `• *public* - Bot responds to everyone\n` +
-                    `• *private* - Bot responds only to owner`
+                    `• *private* - Bot responds only to owner\n\n` +
+                    `💡 *Example:* ${botPrefix || '.'}mode private`
                 );
             }
             
             // Validate mode
             if (newMode !== "public" && newMode !== "private") {
                 return await reply(
-                    "❌ Invalid mode! Use:\n" +
-                    `• ${config.PREFIX}mode public\n` +
-                    `• ${config.PREFIX}mode private`
+                    "❌ *Invalid Mode!*\n\n" +
+                    `Please choose:\n` +
+                    `• ${botPrefix || '.'}mode public\n` +
+                    `• ${botPrefix || '.'}mode private`
                 );
             }
             
             // Check if already in that mode
             if (botMode === newMode) {
-                return await reply(`✅ Bot is already in *${newMode.toUpperCase()}* mode!`);
+                return await reply(
+                    `ℹ️ Bot is already in *${newMode.toUpperCase()}* mode!\n\n` +
+                    `No changes needed.`
+                );
             }
+            
+            const oldMode = botMode;
             
             // Update mode
             const updated = updateConfigMode(newMode);
             
             if (updated) {
                 await reply(
-                    `✅ Mode changed successfully!\n\n` +
-                    `*Previous:* ${botMode === "private" ? "PUBLIC" : "PRIVATE"}\n` +
-                    `*Current:* ${newMode.toUpperCase()}\n\n` +
-                    `${newMode === "private" ? "🔒 Bot will now respond only to owner" : "🌍 Bot will now respond to everyone"}`
+                    `✅ *Mode Changed Successfully!*\n\n` +
+                    `🔄 *Previous:* ${oldMode.toUpperCase()}\n` +
+                    `🎯 *Current:* ${newMode.toUpperCase()}\n\n` +
+                    (newMode === "private" 
+                        ? "🔒 *Bot is now in PRIVATE mode*\nOnly you (owner) can use commands."
+                        : "🌍 *Bot is now in PUBLIC mode*\nEveryone can use commands.")
                 );
             } else {
                 botMode = newMode; // Update in memory even if file update fails
                 await reply(
-                    `⚠️ Mode changed to *${newMode.toUpperCase()}* but couldn't save to config file.\n` +
-                    `This will reset after restart.`
+                    `⚠️ *Mode Changed (Temporary)*\n\n` +
+                    `Mode set to *${newMode.toUpperCase()}* but couldn't save to config file.\n` +
+                    `This change will reset after bot restart.\n\n` +
+                    `Please check file permissions.`
                 );
             }
             
         } catch (err) {
             console.error("Mode command error:", err);
-            await reply("❌ An error occurred while changing mode.");
+            await reply("❌ *An error occurred while changing mode.*");
         }
     }
+);
+
+// ============================================
+// MODE RESTRICTION MIDDLEWARE - OPTIMIZED
+// ============================================
+
+// Remove any existing mode middleware to avoid duplicates
+evt.commands = evt.commands.filter(cmd => {
+    // Keep commands with patterns (actual commands)
+    if (cmd.pattern || cmd.name) return true;
+    // Remove old mode middleware
+    if (cmd.on === "all" && cmd.function?.toString().includes("private mode")) return false;
+    return true;
 });
 
-// Middleware to enforce mode restrictions
+// Add optimized mode restriction middleware
 evt.commands.push({
-    on: "all",
+    on: "message",
+    dontAddCommandList: true,
     function: async (_from, Gifted, conText) => {
         try {
             const m = conText?.m;
             if (!m?.key) return;
-            if (m.key.fromMe) return;
+            if (m.key.fromMe) return; // Skip bot's own messages
             
             const jid = m.key.remoteJid;
-            if (!jid) return;
-            if (jid === "status@broadcast") return;
+            if (!jid || jid.endsWith("@broadcast") || jid.includes("@newsletter")) return;
             
-            // Update mode from config on each message
+            // Get current mode from config
             botMode = config.MODE || "public";
             
-            // If in private mode, check if sender is owner
+            // Skip if mode is public
+            if (botMode === "public" || botMode === "PUBLIC") return;
+            
+            // Only enforce for private mode
             if (botMode === "private" || botMode === "PRIVATE") {
-                const isOwner = conText?.isOwner || false;
+                const isOwner = conText?.isSuperUser || false;
                 
                 if (!isOwner) {
-                    // Block command execution for non-owners in private mode
+                    // Check if message is a command attempt
                     const messageText = m.message?.conversation || 
-                                      m.message?.extendedTextMessage?.text || "";
+                                      m.message?.extendedTextMessage?.text || 
+                                      "";
                     
                     const prefix = config.PREFIX || ".";
                     
-                    // Only respond if it's a command attempt
-                    if (messageText.startsWith(prefix)) {
+                    // If it's a command attempt by non-owner
+                    if (messageText.trim().startsWith(prefix)) {
+                        // Send private mode message
                         await Gifted.sendMessage(jid, {
-                            text: "🔒 *Bot is in Private Mode*\n\nOnly the owner can use commands right now."
+                            text: "🔒 *Bot is in Private Mode*\n\n" +
+                                  "Only the owner can use commands right now.\n\n" +
+                                  "*NI MBAYA 😅*"
                         }, { quoted: m });
                         
-                        // Stop further command processing
-                        conText.stopExecution = true;
+                        // Mark to prevent further command processing
+                        conText.stopProcessing = true;
+                        return true; // Stop execution chain
                     }
                 }
             }
             
+            return false; // Continue normal processing
+            
         } catch (err) {
             console.error("Mode middleware error:", err);
+            return false; // Don't block execution on error
         }
     }
 });
+
+// Log loading
+console.log("✅ Mode plugin loaded - NI MBAYA 😅");
