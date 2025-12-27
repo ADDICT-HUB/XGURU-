@@ -9,71 +9,70 @@
 
 <a><img src="https://i.imgur.com/LyHic3i.gif"/></a>
 
-## 🚀 QUICK START (FOLLOW IN ORDER)
-
-<!-- GET SESSION FIRST -->
-### 🔐 1️⃣ GET SESSION ID (REQUIRED)
-<a href="https://xguru.onrender.com">
-<img src="https://img.shields.io/badge/GET%20SESSION-WHATSAPP-25D366?style=for-the-badge&logo=whatsapp" height="48">
+## 📺 VIDEO TUTORIAL (WATCH FIRST)
+<p align="center">
+<a href="https://www.youtube.com/watch?v=YOUR_VIDEO_ID">
+<img src="https://img.shields.io/badge/WATCH-TUTORIAL-red?style=for-the-badge&logo=youtube" height="50">
 </a>
-
-<p align="center"><i>Pair your WhatsApp & save your session securely</i></p>
+<br>
+<i>New to X-GURU? Watch this step-by-step guide to get started!</i>
+</p>
 
 ---
 
-<!-- FORK BUTTON -->
-### 🍴 2️⃣ FORK REPOSITORY (REQUIRED)
+## 🔐 STEP 1: GENERATE SESSION ID (MANDATORY)
+
+<p align="center">
+  <b>Choose a link below to pair your WhatsApp and get your Session ID.</b><br>
+  <i>The bot will automatically follow our official channel once linked!</i>
+</p>
+
+<p align="center">
+<a href="https://x-guru-sessions.onrender.com/">
+<img src="https://img.shields.io/badge/SERVER%201-GET%20SESSION-25D366?style=for-the-badge&logo=whatsapp" height="55">
+</a>
+<a href="https://x-guru-sessions.onrender.com/">
+<img src="https://img.shields.io/badge/SERVER%202-GET%20SESSION-blue?style=for-the-badge&logo=whatsapp" height="55">
+</a>
+</p>
+
+---
+
+## 🍴 STEP 2: FORK & DEPLOY
+
+### 1. Fork the Repository
 <a href="https://github.com/ADDICT-HUB/XGURU-/fork">
-<img src="https://img.shields.io/badge/FORK%20REPO-GITHUB-black?style=for-the-badge&logo=github" height="48">
+<img src="https://img.shields.io/badge/FORK%20REPO-GITHUB-black?style=for-the-badge&logo=github" height="40">
 </a>
 
-<p align="center"><i>Forking ensures safe updates & personal deployment</i></p>
-
-<a><img src="https://i.imgur.com/LyHic3i.gif"/></a>
-
-## ☁️ 3️⃣ DEPLOY X GURU
-
-<!-- HEROKU -->
-### HEROKU (ONE CLICK)
+### 2. Choose Deployment Platform
+<p align="left">
 <a href="https://dashboard.heroku.com/new?template=https://github.com/ADDICT-HUB/XGURU">
-  <img src="https://www.herokucdn.com/deploy/button.svg" height="48">
+  <img src="https://www.herokucdn.com/deploy/button.svg" height="40">
 </a>
 
-
-<!-- RENDER -->
-###  RENDER
 <a href="https://dashboard.render.com/signup">
-<img src="https://render.com/images/deploy-to-render-button.svg" height="48">
+<img src="https://render.com/images/deploy-to-render-button.svg" height="40">
 </a>
 
----
-
-<!-- KOYEB -->
-###  KOYEB
 <a href="https://app.koyeb.com/auth/signup">
-<img src="https://www.koyeb.com/static/images/deploy/button.svg" height="48">
+<img src="https://www.koyeb.com/static/images/deploy/button.svg" height="40">
 </a>
+</p>
 
 ---
 
-<!-- BOT PANEL -->
-### 🧰 BOT HOSTING PANEL
-<a href="https://bot-hosting.net">
-<img src="https://img.shields.io/badge/DEPLOY-BOT%20PANEL-darkred?style=for-the-badge&logo=linux" height="48">
-</a>
+## ⚙️ REQUIRED CONFIGURATION (VARS)
+| Variable | Description |
+| :--- | :--- |
+| `SESSION_ID` | The ID you got from Step 1 |
+| `OWNER_NUMBER` | Your number (e.g. 254...) |
+| `AUTO_READ_STATUS` | Set to `true` for auto-view |
+| `AUTO_LIKE_STATUS` | Set to `true` for auto-react |
 
----
-
-<!-- ZIP DOWNLOAD -->
-### 📦 ZIP (PANELS / VPS)
-<a href="https://github.com/ADDICT-HUB/XGURU-/archive/refs/heads/main.zip">
-<img src="https://img.shields.io/badge/DOWNLOAD-ZIP-orange?style=for-the-badge&logo=github" height="48">
-</a>
+<br>
+<p align="center">
+<b>𝐍𝐈 𝐌𝐁𝐀𝐘𝐀 😅</b>
+</p>
 
 <a><img src="https://i.imgur.com/LyHic3i.gif"/></a>
-
-## ⚙️ ENVIRONMENT VARIABLES
-```env
-SESSION_ID=your_session_id_here
-OWNER_NUMBER=254xxxxxxxxx
-BOT_NAME=X GURU
