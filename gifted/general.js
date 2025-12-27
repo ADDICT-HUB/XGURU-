@@ -9,7 +9,15 @@ const { gmd, commands, monospace, formatBytes } = require("../gift"),
       readmore = more.repeat(4001),
       { downloadContentFromMessage, generateWAMessageFromContent, normalizeMessageContent } = require('gifted-baileys'),
       ram = `${formatBytes(freeMemoryBytes)}/${formatBytes(totalMemoryBytes)}`;
-const { sendButtons } = require('gifted-btns');
+
+// Import sendButtons safely
+let sendButtons;
+try {
+  sendButtons = require('gifted-btns').sendButtons;
+} catch (e) {
+  console.log("gifted-btns not available, using fallback");
+  sendButtons = null;
+}
 
 
 gmd({ 
@@ -19,207 +27,279 @@ gmd({
   category: "general",
   description: "Check bot response speed",
 }, async (from, Gifted, conText) => {
-      const { mek, react, newsletterJid, newsletterUrl, botFooter, botName } = conText;
+  const { mek, react, newsletterJid, newsletterUrl, botFooter, botName, reply } = conText;
+  
+  try {
     const startTime = process.hrtime();
 
+    // Simulate network delay
     await new Promise(resolve => setTimeout(resolve, Math.floor(80 + Math.random() * 420)));
     
     const elapsed = process.hrtime(startTime);
     const responseTime = Math.floor((elapsed[0] * 1000) + (elapsed[1] / 1000000));
 
-await sendButtons(Gifted, from, {
-  title: 'X GURU Speed',            
-  text: `⚡ Pong: ${responseTime}ms`,    
-  footer: `> *${botFooter}*`,            
-  buttons: [ 
-    {
-      name: 'cta_url',
-      buttonParamsJson: JSON.stringify({
-        display_text: 'WaChannel',
-        url: newsletterUrl
-      })
+    // Determine speed quality
+    let speedEmoji = "🟢";
+    let speedText = "Excellent";
+    
+    if (responseTime > 1000) {
+      speedEmoji = "🔴";
+      speedText = "Slow";
+    } else if (responseTime > 500) {
+      speedEmoji = "🟡";
+      speedText = "Average";
+    } else if (responseTime > 200) {
+      speedEmoji = "🟢";
+      speedText = "Good";
     }
-  ]
+
+    const pingMessage = 
+      `╭━━━『 *𝐏𝐈𝐍𝐆 𝐑𝐄𝐒𝐔𝐋𝐓* 』━━━╮\n\n` +
+      `${speedEmoji} *Speed:* ${responseTime}ms\n` +
+      `📊 *Quality:* ${speedText}\n` +
+      `⚡ *Status:* Active\n\n` +
+      `╰━━━━━━━━━━━━━━━━━━╯`;
+
+    // Try to send with buttons if available
+    if (sendButtons && newsletterUrl) {
+      try {
+        await sendButtons(Gifted, from, {
+          text: pingMessage,    
+          footer: `> *${botFooter}*`,            
+          buttons: [ 
+            {
+              name: 'cta_url',
+              buttonParamsJson: JSON.stringify({
+                display_text: 'WhatsApp Channel',
+                url: newsletterUrl,
+                merchant_url: newsletterUrl
+              })
+            }
+          ]
+        });
+      } catch (btnError) {
+        console.log("Button send failed, using regular message:", btnError.message);
+        // Fallback to regular message
+        await Gifted.sendMessage(from, {
+          text: `${pingMessage}\n\n> *${botFooter}*`,
+          contextInfo: {
+            forwardingScore: 5,
+            isForwarded: true,
+            forwardedNewsletterMessageInfo: {
+              newsletterJid: newsletterJid,
+              newsletterName: botName,
+              serverMessageId: 143
+            }
+          }
+        }, { quoted: mek });
+      }
+    } else {
+      // Fallback to regular message
+      await Gifted.sendMessage(from, {
+        text: `${pingMessage}\n\n> *${botFooter}*`,
+        contextInfo: {
+          forwardingScore: 5,
+          isForwarded: true,
+          forwardedNewsletterMessageInfo: {
+            newsletterJid: newsletterJid,
+            newsletterName: botName,
+            serverMessageId: 143
+          }
+        }
+      }, { quoted: mek });
+    }
+
+    await react("✅");
+  } catch (error) {
+    console.error("Ping command error:", error);
+    await reply(`❌ Ping failed: ${error.message}`);
+  }
 });
 
-    /*await Gifted.sendMessage(from, {
-      text: 
+
+gmd({
+  pattern: "report",
+  aliases: ["request"],
+  react: '💫',
+  description: "Request New Features or Report Issues",
+  category: "owner",
+}, async (from, Gifted, conText) => {
+  const { mek, q, sender, react, pushName, botPrefix, isSuperUser, reply } = conText;
+  
+  // Store reported messages in memory (resets on restart)
+  if (!global.reportedMessages) {
+    global.reportedMessages = {};
+  }
+  
+  const devlopernumber = '254799916673';
+  
+  try {
+    if (!isSuperUser) {
+      return reply("*❌ Owner Only Command*");
+    }
+    
+    if (!q) {
+      return reply(`*Usage Example:*\n${botPrefix}request Hi dev, downloader commands are not working`);
+    }
+    
+    const messageId = mek.key.id;
+    
+    // Check if already reported
+    if (global.reportedMessages[messageId]) {
+      return reply("⚠️ This report has already been forwarded to the owner. Please wait for a response.");
+    }
+    
+    // Mark as reported
+    global.reportedMessages[messageId] = true;
+    
+    const textt = `*| REQUEST/REPORT |*`;
+    const teks1 = `\n\n*User:* @${sender.split("@")[0]}\n*Request/Report:* ${q}`;
+    
+    await Gifted.sendMessage(devlopernumber + "@s.whatsapp.net", {
+      text: textt + teks1,
+      mentions: [sender],
+    }, {
+      quoted: mek,
+    });
+    
+    await reply("✅ *Thank you for your report!*\n\nIt has been forwarded to the owner. Please wait for a response.");
+    await react("✅"); 
+  } catch (e) {
+    console.error("Report error:", e);
+    reply(`❌ Error: ${e.message || e}`);
+  }
+});
+
+
+gmd({
+  pattern: "menus",
+  aliases: ["mainmenu"],
+  description: "Display Bot's Uptime, Date, Time, and Other Stats",
+  react: "📜",
+  category: "general",
+}, async (from, Gifted, conText) => {
+  const { mek, sender, react, config, pushName, botPic, botMode, botVersion, botName, botFooter, timeZone, botPrefix, newsletterJid, reply } = conText;
+  
+  try {
+    function formatUptime(seconds) {
+      const days = Math.floor(seconds / (24 * 60 * 60));
+      seconds %= 24 * 60 * 60;
+      const hours = Math.floor(seconds / (60 * 60));
+      seconds %= 60 * 60;
+      const minutes = Math.floor(seconds / 60);
+      seconds = Math.floor(seconds % 60);
+      return `${days}d ${hours}h ${minutes}m ${seconds}s`;
+    }
+
+    const now = new Date();
+    const date = new Intl.DateTimeFormat('en-GB', {
+      timeZone: timeZone,
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    }).format(now);
+
+    const time = new Intl.DateTimeFormat('en-GB', {
+      timeZone: timeZone,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    }).format(now);
+
+    const uptime = formatUptime(process.uptime());
+    const totalCommands = commands.filter((command) => command.pattern).length;
+
+    let menus = `
+*🦄 Uptime:* ${monospace(uptime)}
+*🍁 Date Today:* ${monospace(date)}
+*🎗 Time Now:* ${monospace(time)}
+
+➮ Founder - Gifted Tech
+➮ User - ${monospace(pushName)}
+➮ Number - ${monospace(config.OWNER_NUMBER || 'N/A')} 
+➮ Memory - ${monospace(ram)}
+
+*🧑‍💻 :* ${monospace(botName)} Is Available
+
+╭──❰ *ALL MENU* ❱
+│🏮 List
+│🏮 Category
+│🏮 Help
+│🏮 Alive
+│🏮 Uptime
+│🏮 Weather
+│🏮 Link
+│🏮 Cpu
+│🏮 Repository
+╰─────────────⦁`;
+
+    const giftedMess = {
+      image: { url: botPic },
+      caption: menus.trim(),
       contextInfo: {
+        mentionedJid: [sender],
         forwardingScore: 5,
         isForwarded: true,
         forwardedNewsletterMessageInfo: {
           newsletterJid: newsletterJid,
           newsletterName: botName,
-          serverMessageId: 143
+          serverMessageId: 0
         }
       }
-    }, { quoted: mek });*/
-      await react("✅");
+    };
+    
+    await Gifted.sendMessage(from, giftedMess, { quoted: mek });
+    await react("✅");
+  } catch (e) {
+    console.error("Menus error:", e);
+    reply(`❌ Error: ${e.message || e}`);
   }
-);
-
-
-gmd({
-    pattern: "report",
-    aliases: ["request"],
-    react: '💫',
-    description: "Request New Features.",
-    category: "owner",
-}, async (from, Gifted, conText) => {
-const { mek, q, sender, react, pushName, botPrefix, isSuperUser, reply } = conText;
-const reportedMessages = {};
-const devlopernumber = '254799916673';
-try{
-  if (!isSuperUser) return reply("*Owner Only Command*");
-  if (!q) return reply(`Example: ${botPrefix}request hi dev downloader commands are not working`);
-    const messageId = mek.key.id;
-    if (reportedMessages[messageId]) {
-        return reply("This report has already been forwarded to the owner. Please wait for a response.");
-    }
-    reportedMessages[messageId] = true;
-    const textt = `*| REQUEST/REPORT |*`;
-    const teks1 = `\n\n*User*: @${sender.split("@")[0]}\n*Request:* ${q}`;
-    Gifted.sendMessage(devlopernumber + "@s.whatsapp.net", {
-        text: textt + teks1,
-        mentions: [sender],
-    }, {
-        quoted: mek,
-    });
-    reply("Tʜᴀɴᴋ ʏᴏᴜ ꜰᴏʀ ʏᴏᴜʀ ʀᴇᴘᴏʀᴛ. Iᴛ ʜᴀs ʙᴇᴇɴ ꜰᴏʀᴡᴀʀᴅᴇᴅ ᴛᴏ ᴛʜᴇ ᴏᴡɴᴇʀ. Pʟᴇᴀsᴇ ᴡᴀɪᴛ ꜰᴏʀ ᴀ ʀᴇsᴘᴏɴsᴇ.");
-await react("✅"); 
-} catch (e) {
-reply(e)
-console.log(e)
-}
-})
-
-
-gmd({
-    pattern: "menus",
-    aliases: ["mainmenu"],
-    description: "Display Bot's Uptime, Date, Time, and Other Stats",
-    react: "📜",
-    category: "general",
-}, async (from, Gifted, conText) => {
-const { mek, sender, react, config, pushName, botPic, botMode, botVersion, botName, botFooter, timeZone, botPrefix, newsletterJid, reply } = conText;
-try {
-      function formatUptime(seconds) {
-            const days = Math.floor(seconds / (24 * 60 * 60));
-            seconds %= 24 * 60 * 60;
-            const hours = Math.floor(seconds / (60 * 60));
-            seconds %= 60 * 60;
-            const minutes = Math.floor(seconds / 60);
-            seconds = Math.floor(seconds % 60);
-            return `${days}d ${hours}h ${minutes}m ${seconds}s`;
-        }
-
-        const now = new Date();
-        const date = new Intl.DateTimeFormat('en-GB', {
-            timeZone: timeZone,
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-        }).format(now);
-
-        const time = new Intl.DateTimeFormat('en-GB', {
-            timeZone: timeZone,
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: true
-        }).format(now);
-
-        const uptime = formatUptime(process.uptime());
-        const totalCommands = commands.filter((command) => command.pattern).length;
-
-        let menus = `
-*🦄 Uᴘᴛɪᴍᴇ :* ${monospace(uptime)}
-*🍁 Dᴀᴛᴇ Tᴏᴅᴀʏ:* ${monospace(date)}
-*🎗 Tɪᴍᴇ Nᴏᴡ:* ${monospace(time)}
-
-➮Fᴏᴜɴᴅᴇʀ - Gifted Tech
-➮Usᴇʀ - ${monospace(pushName)}
-➮Nᴜᴍ - ${monospace(config.OWNER_NUMBER)} 
-➮Mᴇᴍᴏʀʏ - ${monospace(ram)}
-
-*🧑‍💻 :* ${monospace(botName)} Iꜱ Aᴠᴀɪʟᴀʙʟᴇ
-
-╭──❰ *ALL MENU* ❱
-│🏮 Lɪꜱᴛ
-│🏮 Cᴀᴛᴇɢᴏʀʏ
-│🏮 Hᴇʟᴘ
-│🏮 Aʟɪᴠᴇ
-│🏮 Uᴘᴛɪᴍᴇ
-│🏮 Wᴇᴀᴛʜᴇʀ
-│🏮 Lɪɴᴋ
-│🏮 Cᴘᴜ
-│🏮 Rᴇᴘᴏꜱɪᴛᴏʀʏ
-╰─────────────⦁`;
-
-      const giftedMess = {
-        image: { url: botPic },
-        caption: menus.trim(),
-        contextInfo: {
-          mentionedJid: [sender],
-          forwardingScore: 5,
-          isForwarded: true,
-          forwardedNewsletterMessageInfo: {
-            newsletterJid: newsletterJid,
-             newsletterName: botName,
-             serverMessageId: 0
-          }
-        }
-      };
-      await Gifted.sendMessage(from, giftedMess, { quoted: mek });
-      await react("✅");
-    } catch (e) {
-        console.error(e);
-        reply(`${e}`);
-    }
 });
 
 
 gmd({
-    pattern: "list",
-    aliases: ["listmenu"],
-    description: "Show All Commands and their Usage",
-    react: "📜",
-    category: "general",
+  pattern: "list",
+  aliases: ["listmenu"],
+  description: "Show All Commands and their Usage",
+  react: "📜",
+  category: "general",
 }, async (from, Gifted, conText) => {
-const { mek, sender, react, pushName, botPic, botMode, botVersion, botName, botFooter, timeZone, botPrefix, newsletterJid, reply } = conText;
-try {
+  const { mek, sender, react, pushName, botPic, botMode, botVersion, botName, botFooter, timeZone, botPrefix, newsletterJid, reply } = conText;
+  
+  try {
     function formatUptime(seconds) {
-            const days = Math.floor(seconds / (24 * 60 * 60));
-            seconds %= 24 * 60 * 60;
-            const hours = Math.floor(seconds / (60 * 60));
-            seconds %= 60 * 60;
-            const minutes = Math.floor(seconds / 60);
-            seconds = Math.floor(seconds % 60);
-            return `${days}d ${hours}h ${minutes}m ${seconds}s`;
-        }
+      const days = Math.floor(seconds / (24 * 60 * 60));
+      seconds %= 24 * 60 * 60;
+      const hours = Math.floor(seconds / (60 * 60));
+      seconds %= 60 * 60;
+      const minutes = Math.floor(seconds / 60);
+      seconds = Math.floor(seconds % 60);
+      return `${days}d ${hours}h ${minutes}m ${seconds}s`;
+    }
 
-const now = new Date();
-const date = new Intl.DateTimeFormat('en-GB', {
-    timeZone: timeZone,
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-}).format(now);
+    const now = new Date();
+    const date = new Intl.DateTimeFormat('en-GB', {
+      timeZone: timeZone,
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    }).format(now);
 
-const time = new Intl.DateTimeFormat('en-GB', {
-    timeZone: timeZone,
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: true
-}).format(now);
+    const time = new Intl.DateTimeFormat('en-GB', {
+      timeZone: timeZone,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    }).format(now);
 
-const uptime = formatUptime(process.uptime());
-const totalCommands = commands.filter((command) => command.pattern).length;
+    const uptime = formatUptime(process.uptime());
+    const totalCommands = commands.filter((command) => command.pattern).length;
 
-// Bold techy font function
-function boldFont(txt) {
-    const letters = {
+    // Bold techy font function
+    function boldFont(txt) {
+      const letters = {
         A: '𝗔', B: '𝗕', C: '𝗖', D: '𝗗', E: '𝗘', F: '𝗙', G: '𝗚',
         H: '𝗛', I: '𝗜', J: '𝗝', K: '𝗞', L: '𝗟', M: '𝗠', N: '𝗡',
         O: '𝗢', P: '𝗣', Q: '𝗤', R: '𝗥', S: '𝗦', T: '𝗧', U: '𝗨',
@@ -229,12 +309,12 @@ function boldFont(txt) {
         o: '𝗼', p: '𝗽', q: '𝗾', r: '𝗿', s: '𝘀', t: '𝘁', u: '𝘂',
         v: '𝘃', w: '𝘄', x: '𝘅', y: '𝘆', z: '𝘇',
         0: '𝟬', 1: '𝟭', 2: '𝟮', 3: '𝟯', 4: '𝟰', 5: '𝟱', 6: '𝟲', 7: '𝟳', 8: '𝟴', 9: '𝟵'
-    };
-    return txt.split('').map(c => letters[c] || c).join('');
-}
+      };
+      return txt.split('').map(c => letters[c] || c).join('');
+    }
 
-// Metallic menu with bold font
-let list = `
+    // Metallic menu with bold font
+    let list = `
 ╔═━⊹✦ ${boldFont(botName)} ✦⊹━═╗
 
 💠 ${boldFont("BOT INFO")}
@@ -254,34 +334,35 @@ let list = `
 💠 ${boldFont("COMMANDS LIST")}
 ╭────────────────────────╮`;
 
-commands.forEach((gmd, index) => {
-    if (gmd.pattern && gmd.description) {
-        list += `│ ⚡ ${boldFont(index + 1 + ". " + gmd.pattern)}\n│    ${gmd.description}\n`;
-    }
-});
+    commands.forEach((gmd, index) => {
+      if (gmd.pattern && gmd.description) {
+        list += `│ ⚡ ${boldFont((index + 1) + ". " + gmd.pattern)}\n│    ${gmd.description}\n`;
+      }
+    });
 
-list += `╰────────────────────────╯${readmore}\n`;
+    list += `╰────────────────────────╯${readmore}\n`;
 
-        const giftedMess = {
-        image: { url: botPic },
-        caption: list.trim(),
-        contextInfo: {
-          mentionedJid: [sender],
-          forwardingScore: 5,
-          isForwarded: true,
-          forwardedNewsletterMessageInfo: {
-            newsletterJid: newsletterJid,
-            newsletterName: botName,
-            serverMessageId: 0
-          }
+    const giftedMess = {
+      image: { url: botPic },
+      caption: list.trim(),
+      contextInfo: {
+        mentionedJid: [sender],
+        forwardingScore: 5,
+        isForwarded: true,
+        forwardedNewsletterMessageInfo: {
+          newsletterJid: newsletterJid,
+          newsletterName: botName,
+          serverMessageId: 0
         }
-      };
-      await Gifted.sendMessage(from, giftedMess, { quoted: mek });
-      await react("✅");
-    } catch (e) {
-        console.error(e);
-        reply(`${e}`);
-    }
+      }
+    };
+    
+    await Gifted.sendMessage(from, giftedMess, { quoted: mek });
+    await react("✅");
+  } catch (e) {
+    console.error("List error:", e);
+    reply(`❌ Error: ${e.message || e}`);
+  }
 });
 
 
@@ -292,89 +373,92 @@ gmd({
   category: "general",
   description: "Fetch bot main menu",
 }, async (from, Gifted, conText) => {
-const { mek, sender, react, pushName, botPic, botMode, botVersion, botName, botFooter, timeZone, botPrefix, newsletterJid, reply } = conText;
-try {
+  const { mek, sender, react, pushName, botPic, botMode, botVersion, botName, botFooter, timeZone, botPrefix, newsletterJid, reply } = conText;
+  
+  try {
     function formatUptime(seconds) {
-            const days = Math.floor(seconds / (24 * 60 * 60));
-            seconds %= 24 * 60 * 60;
-            const hours = Math.floor(seconds / (60 * 60));
-            seconds %= 60 * 60;
-            const minutes = Math.floor(seconds / 60);
-            seconds = Math.floor(seconds % 60);
-            return `${days}d ${hours}h ${minutes}m ${seconds}s`;
-        }
+      const days = Math.floor(seconds / (24 * 60 * 60));
+      seconds %= 24 * 60 * 60;
+      const hours = Math.floor(seconds / (60 * 60));
+      seconds %= 60 * 60;
+      const minutes = Math.floor(seconds / 60);
+      seconds = Math.floor(seconds % 60);
+      return `${days}d ${hours}h ${minutes}m ${seconds}s`;
+    }
 
-        const now = new Date();
-        const date = new Intl.DateTimeFormat('en-GB', {
-            timeZone: timeZone,
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-        }).format(now);
+    const now = new Date();
+    const date = new Intl.DateTimeFormat('en-GB', {
+      timeZone: timeZone,
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    }).format(now);
 
-        const time = new Intl.DateTimeFormat('en-GB', {
-            timeZone: timeZone,
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: true
-        }).format(now);
+    const time = new Intl.DateTimeFormat('en-GB', {
+      timeZone: timeZone,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    }).format(now);
 
-        const uptime = formatUptime(process.uptime());
-        const totalCommands = commands.filter((command) => command.pattern).length;
+    const uptime = formatUptime(process.uptime());
+    const totalCommands = commands.filter((command) => command.pattern).length;
 
-        const categorized = commands.reduce((menu, gmd) => {
-            if (gmd.pattern && !gmd.dontAddCommandList) {
-                if (!menu[gmd.category]) menu[gmd.category] = [];
-                menu[gmd.category].push(gmd.pattern);
-            }
-            return menu;
-        }, {});
-      let header = `╭══〘〘 *${monospace(botName)}* 〙〙═⊷
-┃❍ *Mᴏᴅᴇ:*  ${monospace(botMode)}
-┃❍ *Pʀᴇғɪx:*  [ ${monospace(botPrefix)} ]
-┃❍ *Usᴇʀ:*  ${monospace(pushName)}
-┃❍ *Pʟᴜɢɪɴs:*  ${monospace(totalCommands.toString())}
-┃❍ *Vᴇʀsɪᴏɴ:*  ${monospace(botVersion)}
-┃❍ *Uᴘᴛɪᴍᴇ:*  ${monospace(uptime)}
-┃❍ *Tɪᴍᴇ Nᴏᴡ:*  ${monospace(time)}
-┃❍ *Dᴀᴛᴇ Tᴏᴅᴀʏ:*  ${monospace(date)}
-┃❍ *Tɪᴍᴇ Zᴏɴᴇ:*  ${monospace(timeZone)}
-┃❍ *Sᴇʀᴠᴇʀ Rᴀᴍ:*  ${monospace(ram)}
+    const categorized = commands.reduce((menu, gmd) => {
+      if (gmd.pattern && !gmd.dontAddCommandList) {
+        if (!menu[gmd.category]) menu[gmd.category] = [];
+        menu[gmd.category].push(gmd.pattern);
+      }
+      return menu;
+    }, {});
+    
+    let header = `╭══〘〘 *${monospace(botName)}* 〙〙═⊷
+┃❍ *Mode:*  ${monospace(botMode)}
+┃❍ *Prefix:*  [ ${monospace(botPrefix)} ]
+┃❍ *User:*  ${monospace(pushName)}
+┃❍ *Plugins:*  ${monospace(totalCommands.toString())}
+┃❍ *Version:*  ${monospace(botVersion)}
+┃❍ *Uptime:*  ${monospace(uptime)}
+┃❍ *Time Now:*  ${monospace(time)}
+┃❍ *Date Today:*  ${monospace(date)}
+┃❍ *Time Zone:*  ${monospace(timeZone)}
+┃❍ *Server Ram:*  ${monospace(ram)}
 ╰═════════════════⊷\n${readmore}\n`;
 
-        const formatCategory = (category, gmds) => {
-            const title = `╭━━━━❮ *${monospace(category.toUpperCase())}* ❯━⊷ \n`;
-            const body = gmds.map(gmd => `┃◇ ${monospace(botPrefix + gmd)}`).join('\n');
-            const footer = `╰━━━━━━━━━━━━━━━━━⊷\n`;
-            return `${title}${body}\n${footer}\n`;
-        };
+    const formatCategory = (category, gmds) => {
+      const title = `╭━━━━❮ *${monospace(category.toUpperCase())}* ❯━⊷ \n`;
+      const body = gmds.map(gmd => `┃◇ ${monospace(botPrefix + gmd)}`).join('\n');
+      const footer = `╰━━━━━━━━━━━━━━━━━⊷\n`;
+      return `${title}${body}\n${footer}\n`;
+    };
 
-        let menu = header;
-        for (const [category, gmds] of Object.entries(categorized)) {
-            menu += formatCategory(category, gmds) + '\n';
-        }
-        
-    const giftedMess = {
-        image: { url: botPic },
-        caption: `${menu.trim()}\n\n> *${botFooter}*`,
-        contextInfo: {
-          mentionedJid: [sender],
-          forwardingScore: 5,
-          isForwarded: true,
-          forwardedNewsletterMessageInfo: {
-            newsletterJid: newsletterJid,
-            newsletterName: botName,
-            serverMessageId: 0
-          }
-        }
-      };
-      await Gifted.sendMessage(from, giftedMess, { quoted: mek });
-      await react("✅");
-    } catch (e) {
-        console.error(e);
-        reply(`${e}`);
+    let menu = header;
+    for (const [category, gmds] of Object.entries(categorized)) {
+      menu += formatCategory(category, gmds) + '\n';
     }
+    
+    const giftedMess = {
+      image: { url: botPic },
+      caption: `${menu.trim()}\n\n> *${botFooter}*`,
+      contextInfo: {
+        mentionedJid: [sender],
+        forwardingScore: 5,
+        isForwarded: true,
+        forwardedNewsletterMessageInfo: {
+          newsletterJid: newsletterJid,
+          newsletterName: botName,
+          serverMessageId: 0
+        }
+      }
+    };
+    
+    await Gifted.sendMessage(from, giftedMess, { quoted: mek });
+    await react("✅");
+  } catch (e) {
+    console.error("Menu error:", e);
+    reply(`❌ Error: ${e.message || e}`);
+  }
 });
 
 
@@ -385,14 +469,14 @@ gmd({
   category: "owner",
   description: "Displays the full raw quoted message using Baileys structure.",
 }, async (from, Gifted, conText) => {
-  const { mek, reply, react, quotedMsg, isSuperUser, botName, botFooter, newsletterJid, newsletterUrl} = conText;
+  const { mek, reply, react, quotedMsg, isSuperUser, botName, botFooter, newsletterJid, newsletterUrl } = conText;
   
   if (!isSuperUser) {
-    return reply(`Owner Only Command!`);
+    return reply(`❌ Owner Only Command!`);
   }
   
   if (!quotedMsg) {
-    return reply(`Please reply to/quote a message`);
+    return reply(`⚠️ Please reply to/quote a message`);
   }
 
   try {
@@ -402,28 +486,47 @@ gmd({
     for (const chunk of chunks) {
       const formattedMessage = `\`\`\`\n${chunk}\n\`\`\``;
 
- await sendButtons(Gifted, from, {
-  title: '',            
-  text: formattedMessage,    
-  footer: `> *${botFooter}*`,            
-  buttons: [ 
-    { name: 'cta_copy', 
-      buttonParamsJson: JSON.stringify({ 
-        display_text: 'Copy', 
-        copy_code: formattedMessage }) },
-    {
-      name: 'cta_url',
-      buttonParamsJson: JSON.stringify({
-        display_text: 'WaChannel',
-        url: newsletterUrl
-      })
-    }
-  ]
-});
-
-     /* await Gifted.sendMessage(
-        from,
-        {
+      // Try buttons first, fallback to regular message
+      if (sendButtons && newsletterUrl) {
+        try {
+          await sendButtons(Gifted, from, {
+            text: formattedMessage,    
+            footer: `> *${botFooter}*`,            
+            buttons: [ 
+              { 
+                name: 'cta_copy', 
+                buttonParamsJson: JSON.stringify({ 
+                  display_text: 'Copy', 
+                  copy_code: chunk 
+                }) 
+              },
+              {
+                name: 'cta_url',
+                buttonParamsJson: JSON.stringify({
+                  display_text: 'WhatsApp Channel',
+                  url: newsletterUrl,
+                  merchant_url: newsletterUrl
+                })
+              }
+            ]
+          });
+        } catch (btnError) {
+          console.log("Button send failed, using regular message");
+          await Gifted.sendMessage(from, {
+            text: formattedMessage,
+            contextInfo: {
+              forwardingScore: 5,
+              isForwarded: true,
+              forwardedNewsletterMessageInfo: {
+                newsletterJid: newsletterJid,
+                newsletterName: botName,
+                serverMessageId: 143
+              },
+            },
+          }, { quoted: mek });
+        }
+      } else {
+        await Gifted.sendMessage(from, {
           text: formattedMessage,
           contextInfo: {
             forwardingScore: 5,
@@ -434,16 +537,17 @@ gmd({
               serverMessageId: 143
             },
           },
-        },
-        { quoted: mek }
-      );*/
-      await react("✅");
+        }, { quoted: mek });
+      }
     }
+    
+    await react("✅");
   } catch (error) {
     console.error("Error processing quoted message:", error);
     await reply(`❌ An error occurred while processing the message.`);
   }
 });
+
 
 gmd({ 
   pattern: "uptime", 
@@ -452,8 +556,9 @@ gmd({
   category: "general",
   description: "check bot uptime status.",
 }, async (from, Gifted, conText) => {
-      const { mek, react, newsletterJid, newsletterUrl, botFooter, botName } = conText;
-      
+  const { mek, react, newsletterJid, newsletterUrl, botFooter, botName, reply } = conText;
+  
+  try {
     const uptimeMs = Date.now() - BOT_START_TIME;
     
     const seconds = Math.floor((uptimeMs / 1000) % 60);
@@ -461,23 +566,61 @@ gmd({
     const hours = Math.floor((uptimeMs / (1000 * 60 * 60)) % 24);
     const days = Math.floor(uptimeMs / (1000 * 60 * 60 * 24));
 
- await sendButtons(Gifted, from, {
-  title: '',            
-  text: `⏱️ Uptime: ${days}d ${hours}h ${minutes}m ${seconds}s`,    
-  footer: `> *${botFooter}*`,            
-  buttons: [ 
-    {
-      name: 'cta_url',
-      buttonParamsJson: JSON.stringify({
-        display_text: 'WaChannel',
-        url: newsletterUrl
-      })
+    const uptimeText = `⏱️ *Bot Uptime*\n\n${days}d ${hours}h ${minutes}m ${seconds}s`;
+
+    if (sendButtons && newsletterUrl) {
+      try {
+        await sendButtons(Gifted, from, {
+          text: uptimeText,    
+          footer: `> *${botFooter}*`,            
+          buttons: [ 
+            {
+              name: 'cta_url',
+              buttonParamsJson: JSON.stringify({
+                display_text: 'WhatsApp Channel',
+                url: newsletterUrl,
+                merchant_url: newsletterUrl
+              })
+            }
+          ]
+        });
+      } catch (btnError) {
+        console.log("Button send failed, using regular message");
+        await Gifted.sendMessage(from, {
+          text: `${uptimeText}\n\n> *${botFooter}*`,
+          contextInfo: {
+            forwardingScore: 5,
+            isForwarded: true,
+            forwardedNewsletterMessageInfo: {
+              newsletterJid: newsletterJid,
+              newsletterName: botName,
+              serverMessageId: 143
+            }
+          }
+        }, { quoted: mek });
+      }
+    } else {
+      await Gifted.sendMessage(from, {
+        text: `${uptimeText}\n\n> *${botFooter}*`,
+        contextInfo: {
+          forwardingScore: 5,
+          isForwarded: true,
+          forwardedNewsletterMessageInfo: {
+            newsletterJid: newsletterJid,
+            newsletterName: botName,
+            serverMessageId: 143
+          }
+        }
+      }, { quoted: mek });
     }
-  ]
-});
-      await react("✅");
+    
+    await react("✅");
+  } catch (error) {
+    console.error("Uptime error:", error);
+    reply(`❌ Error: ${error.message}`);
   }
-);
+});
+
 
 gmd({ 
   pattern: "repo", 
@@ -486,39 +629,79 @@ gmd({
   category: "general",
   description: "Fetch bot script.",
 }, async (from, Gifted, conText) => {
-      const { mek, sender, react, pushName, botPic, botName, botFooter, newsletterUrl, ownerName, newsletterJid, giftedRepo } = conText;
+  const { mek, sender, react, pushName, botPic, botName, botFooter, newsletterUrl, ownerName, newsletterJid, giftedRepo, reply } = conText;
 
+  try {
     const response = await axios.get(`https://api.github.com/repos/${giftedRepo}`);
     const repoData = response.data;
     const { full_name, name, forks_count, stargazers_count, created_at, updated_at, owner } = repoData;
-    const messageText = `Hello *_${pushName}_,*\nThis is *${botName},* A Whatsapp Bot Built by *${ownerName},* Enhanced with Amazing Features to Make Your Whatsapp Communication and Interaction Experience Amazing\n\n*❲❒❳ ɴᴀᴍᴇ:* ${name}\n*❲❒❳ sᴛᴀʀs:* ${stargazers_count}\n*❲❒❳ ғᴏʀᴋs:* ${forks_count}\n*❲❒❳ ᴄʀᴇᴀᴛᴇᴅ ᴏɴ:* ${new Date(created_at).toLocaleDateString()}\n*❲❒❳ ʟᴀsᴛ ᴜᴘᴅᴀᴛᴇᴅ:* ${new Date(updated_at).toLocaleDateString()}`;
+    
+    const messageText = `Hello *_${pushName}_,*\n\nThis is *${botName},* A WhatsApp Bot Built by *${ownerName},* Enhanced with Amazing Features to Make Your WhatsApp Communication and Interaction Experience Amazing\n\n*❲❒❳ Name:* ${name}\n*❲❒❳ Stars:* ${stargazers_count}\n*❲❒❳ Forks:* ${forks_count}\n*❲❒❳ Created On:* ${new Date(created_at).toLocaleDateString()}\n*❲❒❳ Last Updated:* ${new Date(updated_at).toLocaleDateString()}`;
 
-await sendButtons(Gifted, from, {
-  title: '',            
-  text: messageText,    
-  footer: `> *${botFooter}*`,            
-  buttons: [ 
-    { name: 'cta_copy', 
-      buttonParamsJson: JSON.stringify({ 
-        display_text: 'Copy Link', 
-        copy_code: `https://github.com/${giftedRepo}` }) },
-    {
-      name: 'cta_url',
-      buttonParamsJson: JSON.stringify({
-        display_text: 'Visit Repo',
-        url: `https://github.com/${giftedRepo}`
-      })
+    if (sendButtons && newsletterUrl) {
+      try {
+        await sendButtons(Gifted, from, {
+          text: messageText,    
+          footer: `> *${botFooter}*`,            
+          buttons: [ 
+            { 
+              name: 'cta_copy', 
+              buttonParamsJson: JSON.stringify({ 
+                display_text: 'Copy Link', 
+                copy_code: `https://github.com/${giftedRepo}` 
+              }) 
+            },
+            {
+              name: 'cta_url',
+              buttonParamsJson: JSON.stringify({
+                display_text: 'Visit Repo',
+                url: `https://github.com/${giftedRepo}`,
+                merchant_url: `https://github.com/${giftedRepo}`
+              })
+            }
+          ]
+        });
+      } catch (btnError) {
+        console.log("Button send failed, using regular message");
+        await Gifted.sendMessage(from, {
+          text: `${messageText}\n\n*Repository:* https://github.com/${giftedRepo}\n\n> *${botFooter}*`,
+          contextInfo: {
+            forwardingScore: 5,
+            isForwarded: true,
+            forwardedNewsletterMessageInfo: {
+              newsletterJid: newsletterJid,
+              newsletterName: botName,
+              serverMessageId: 143
+            }
+          }
+        }, { quoted: mek });
+      }
+    } else {
+      await Gifted.sendMessage(from, {
+        text: `${messageText}\n\n*Repository:* https://github.com/${giftedRepo}\n\n> *${botFooter}*`,
+        contextInfo: {
+          forwardingScore: 5,
+          isForwarded: true,
+          forwardedNewsletterMessageInfo: {
+            newsletterJid: newsletterJid,
+            newsletterName: botName,
+            serverMessageId: 143
+          }
+        }
+      }, { quoted: mek });
     }
-  ]
-});
-      await react("✅");
+    
+    await react("✅");
+  } catch (error) {
+    console.error("Repo error:", error);
+    reply(`❌ Failed to fetch repository info: ${error.message}`);
   }
-);
+});
 
 
 gmd({
   pattern: "save",
-  aliases: ['sv', 's', 'sav', '.'],
+  aliases: ['sv', 's', 'sav'],
   react: "⚡",
   category: "tools",
   description: "Save messages (supports images, videos, audio, stickers, and text).",
@@ -532,7 +715,7 @@ gmd({
   const quotedMsg = mek.message?.extendedTextMessage?.contextInfo?.quotedMessage;
   
   if (!quotedMsg) {
-    return reply(`⚠️ Please reply to/quote a message.`);
+    return reply(`⚠️ Please reply to/quote a message to save it.`);
   }
 
   try {
@@ -542,14 +725,14 @@ gmd({
       const buffer = await getMediaBuffer(quotedMsg.imageMessage, "image");
       mediaData = {
         image: buffer,
-        caption: quotedMsg.imageMessage.caption || ""
+        caption: quotedMsg.imageMessage.caption || "📸 Saved Image"
       };
     } 
     else if (quotedMsg.videoMessage) {
       const buffer = await getMediaBuffer(quotedMsg.videoMessage, "video");
       mediaData = {
         video: buffer,
-        caption: quotedMsg.videoMessage.caption || ""
+        caption: quotedMsg.videoMessage.caption || "🎥 Saved Video"
       };
     } 
     else if (quotedMsg.audioMessage) {
@@ -568,18 +751,19 @@ gmd({
     else if (quotedMsg.conversation || quotedMsg.extendedTextMessage?.text) {
       const text = quotedMsg.conversation || quotedMsg.extendedTextMessage.text;
       mediaData = {
-        text: text
+        text: `💾 *Saved Message*\n\n${text}`
       };
     } 
     else {
       return reply(`❌ Unsupported message type.`);
     }
 
-    await Gifted.sendMessage(sender, mediaData, { quoted: mek });
+    await Gifted.sendMessage(sender, mediaData);
+    await reply("✅ Message saved successfully! Check your DM.");
     await react("✅");
 
   } catch (error) {
     console.error("Save Error:", error);
-    await reply(`❌ Failed to save the message. Error: ${error.message}`);
+    await reply(`❌ Failed to save the message.\n\n*Error:* ${error.message}`);
   }
 });
