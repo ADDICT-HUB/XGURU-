@@ -7,7 +7,6 @@
 <p align="center">
   <img src="https://img.shields.io/github/stars/ADDICT-HUB/XGURU?style=social">
   <img src="https://img.shields.io/github/forks/ADDICT-HUB/XGURU?style=social">
-  <img src="https://img.shields.io/github/watchers/ADDICT-HUB/XGURU?style=social">
   <img src="https://img.shields.io/badge/Maintained%3F-yes-green.svg">
 </p>
 
@@ -15,6 +14,14 @@
   <a href="https://whatsapp.com/channel/0029VbBNUAFFXUuUmJdrkj1f">
     <img src="https://img.shields.io/badge/JOIN-OFFICIAL%20CHANNEL-25D366?style=for-the-badge&logo=whatsapp">
   </a>
+</p>
+
+---
+
+## 🚦 ◈ 𝐒𝐄𝐑𝐕𝐄𝐑 𝐒𝐓𝐀𝐓𝐔𝐒 ◈
+<p align="center">
+  <img src="https://img.shields.io/website?label=HEROKU%20PAIR&up_message=ONLINE&down_message=OFFLINE&url=https%3A%2F%2Fxxgurunewpair-1a25ae238c78.herokuapp.com%2F" height="25">
+  <img src="https://img.shields.io/website?label=RENDER%20PAIR&up_message=ONLINE&down_message=OFFLINE&url=https%3A%2F%2Fx-guru-sessions.onrender.com%2F" height="25">
 </p>
 
 ---
@@ -30,23 +37,20 @@
 
 ## 🔐 ◈ 𝐏𝐇𝐀𝐒𝐄 𝟏: 𝐒𝐄𝐒𝐒𝐈𝐎𝐍 𝐆𝐄𝐍𝐄𝐑𝐀𝐓𝐈𝐎𝐍 ◈
 <p align="center">
-  <i>Generate your Session ID via one of the servers below (Required)</i>
+  <i>Link your WhatsApp account to generate your Session ID. Choose a high-speed server below:</i>
 </p>
 <p align="center">
-  <a href="https://x-guru-sessions.onrender.com/">
-    <img src="https://img.shields.io/badge/SERVER%2001-GET%20SESSION-25D366?style=for-the-badge&logo=whatsapp" height="55">
+  <a href="https://xxgurunewpair-1a25ae238c78.herokuapp.com/">
+    <img src="https://img.shields.io/badge/HEROKU-NEW_PAIRING-430098?style=for-the-badge&logo=heroku&logoColor=white" height="55">
   </a>
   <a href="https://x-guru-sessions.onrender.com/">
-    <img src="https://img.shields.io/badge/SERVER%2002-GET%20SESSION-00CCFF?style=for-the-badge&logo=whatsapp" height="55">
+    <img src="https://img.shields.io/badge/RENDER-BACKUP_PAIR-00CCFF?style=for-the-badge&logo=render&logoColor=white" height="55">
   </a>
 </p>
 
 ---
 
 ## 🍴 ◈ 𝐏𝐇𝐀𝐒𝐄 𝟐: 𝐑𝐄𝐏𝐎𝐒𝐈𝐓𝐎𝐑𝐘 𝐅𝐎𝐑𝐊 ◈
-<p align="center">
-  <i>Fork this repository to your own account to enable deployments</i>
-</p>
 <p align="center">
   <a href="https://github.com/ADDICT-HUB/XGURU/fork">
     <img src="https://img.shields.io/badge/FORK_X--GURU_MD-WHITE?style=for-the-badge&logo=github&logoColor=black" height="45">
@@ -64,7 +68,7 @@
     <img src="https://render.com/images/deploy-to-render-button.svg" height="45">
   </a>
   <a href="https://app.koyeb.com/auth/signup">
-    <img src="https://www.koyeb.com/static/images/deploy/button.svg" height="45">
+    <img src="https://img.shields.io/badge/DEPLOY_TO_KOYEB-003E53?style=for-the-badge&logo=koyeb&logoColor=white" height="45">
   </a>
 </p>
 
