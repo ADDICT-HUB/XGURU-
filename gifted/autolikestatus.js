@@ -5,7 +5,7 @@ const axios = require("axios");
 
 const configPath = path.join(__dirname, "../config.js");
 
-/* Load thumbnail safely (URL only) */
+/* Load thumbnail safely */
 async function getThumbnailBuffer(url) {
     try {
         if (!url) return null;
@@ -26,29 +26,40 @@ evt.commands.push({
 
     function: async (from, Gifted, conText) => {
         const {
-            args,
             isSuperUser,
             reply,
             botName,
             botCaption,
             newsletterUrl,
-            botPrefix
+            botPrefix,
+            text
         } = conText;
 
         if (!isSuperUser) {
             return reply("❌ This command is restricted to the Owner.");
         }
 
-        const option = args[0]?.toLowerCase();
-        if (!["on", "off"].includes(option)) {
-            return reply(
-                `*Usage:*\n${botPrefix}autolikestatus on\n${botPrefix}autolikestatus off`
-            );
-        }
+        // ✅ FRAMEWORK-SAFE ARG PARSING
+        const option = text
+            ?.trim()
+            ?.split(/\s+/)[1]
+            ?.toLowerCase();
 
-        /* Reload config cleanly */
+        // Reload config cleanly
         delete require.cache[require.resolve(configPath)];
         const config = require(configPath);
+
+        if (option !== "on" && option !== "off") {
+            return reply(
+                `📊 *CURRENT STATUS:* ${
+                    config.AUTO_LIKE_STATUS ? "ON" : "OFF"
+                }\n\n` +
+                `*Usage:*\n` +
+                `${botPrefix}autolikestatus on\n` +
+                `${botPrefix}autolikestatus off\n\n` +
+                `> *NI MBAYA 😅*`
+            );
+        }
 
         config.AUTO_LIKE_STATUS = option === "on";
 
