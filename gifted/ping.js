@@ -1,25 +1,16 @@
 const { evt } = require("../gift");
 
 evt.commands.push({
-  pattern: "ping",
-  react: "🏓",
-  desc: "Check if the bot is active",
-  category: "main",
-  function: async (from, Gifted, conText) => {
-    const start = new Date().getTime();
-    
-    // Initial response
-    const mass = await Gifted.sendMessage(from, { 
-      text: "Testing Speed... 💨" 
-    }, { quoted: conText.m });
-
-    const end = new Date().getTime();
-    const responseTime = end - start;
-
-    // Final response with unique font for your note
-    await Gifted.sendMessage(from, {
-      text: `*✅ PONG!!*\n\n*🚀 Latency:* ${responseTime}ms\n*🕒 Status:* Active\n\n> \`NI MBAYA 😅\``,
-      edit: mass.key
-    });
-  }
+    pattern: "ping",
+    category: "main",
+    function: async (from, Gifted, { reply }) => {
+        const start = Date.now();
+        const msg = await reply("🚀 *𝐏𝐢𝐧𝐠𝐢𝐧𝐠...*");
+        const end = Date.now();
+        
+        await Gifted.sendMessage(from, { 
+            text: `🛰️ *𝐑𝐞𝐬𝐩𝐨𝐧𝐬𝐞:* ${end - start}𝐦𝐬\n\n> *𝐍𝐈 𝐌𝐁𝐀𝐘𝐀 😅*`,
+            edit: msg.key 
+        });
+    }
 });
