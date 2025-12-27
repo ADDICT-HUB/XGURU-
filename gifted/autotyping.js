@@ -1,29 +1,35 @@
 const { evt } = require("../gift");
 const config = require("../config");
 
-/* Simple rate limiter to avoid spam */
-let lastTyping = {};
+/* Rate limiter */
+const lastTyping = {};
 
 evt.commands.push({
     on: "all",
-    function: async (from, Gifted, m) => {
+
+    function: async (_from, Gifted, conText) => {
         try {
-            if (!from) return;
-            if (m?.fromMe) return;
-            if (from === "status@broadcast") return;
+            const m = conText?.m;
+            if (!m?.key) return;
+
+            const jid = m.key.remoteJid;
+            if (!jid) return;
+
+            if (m.key.fromMe) return;
+            if (jid === "status@broadcast") return;
 
             if (config.AUTO_TYPING !== true && config.AUTO_TYPING !== "true") {
                 return;
             }
 
             const now = Date.now();
-            if (lastTyping[from] && now - lastTyping[from] < 3000) return;
+            if (lastTyping[jid] && now - lastTyping[jid] < 3000) return;
 
-            lastTyping[from] = now;
+            lastTyping[jid] = now;
 
-            await Gifted.sendPresenceUpdate("composing", from);
+            await Gifted.sendPresenceUpdate("composing", jid);
         } catch (err) {
-            console.error("AutoTyping error:", err.message);
+            console.error("AutoTyping error:", err);
         }
     }
 });
