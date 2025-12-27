@@ -4,34 +4,50 @@ const { gmd } = require("../gift");
 
 const settingsPath = path.join(__dirname, "../settings.js");
 
-gmd({
-  pattern: "autorecord",
-  react: "🎙️",
-  category: "owner",
-  description: "Toggle Auto Recording + Typing",
-}, async (from, Gifted, conText) => {
-  const { reply, react, isSuperUser, config } = conText;
-  if (!isSuperUser) return reply("❌ Owner Only Command!");
+gmd(
+  {
+    pattern: "autorecord",
+    react: "🎙️",
+    category: "owner",
+    description: "Toggle Auto Recording + Typing"
+  },
+  async (from, Gifted, conText) => {
+    const { reply, react, isSuperUser, config } = conText;
 
-  try {
-    const val = config.AUTO_RECORD === "true" ? "false" : "true";
-    config.AUTO_RECORD = val;
+    if (!isSuperUser) {
+      return reply("❌ Owner Only Command!");
+    }
 
-    let txt = fs.readFileSync(settingsPath, "utf-8");
-    txt = txt.replace(
-      /AUTO_RECORD\s*:\s*["'](true|false)["']/,
-      `AUTO_RECORD: "${val}"`
-    );
-    fs.writeFileSync(settingsPath, txt);
+    try {
+      /* Toggle value */
+      const newValue = config.AUTO_RECORD === "true" ? "false" : "true";
+      config.AUTO_RECORD = newValue;
 
-    await react("✅");
-    reply(
-      val === "true"
-        ? "🎙️ Auto Recording + Typing ENABLED"
-        : "⛔ Auto Recording + Typing DISABLED"
-    );
-  } catch (e) {
-    console.error(e);
-    reply("❌ Failed");
+      /* Update settings file safely */
+      let fileContent = fs.readFileSync(settingsPath, "utf-8");
+
+      if (/AUTO_RECORD\s*:/.test(fileContent)) {
+        fileContent = fileContent.replace(
+          /AUTO_RECORD\s*:\s*["'](true|false)["']/,
+          `AUTO_RECORD: "${newValue}"`
+        );
+      } else {
+        // If missing, append it safely
+        fileContent += `\nAUTO_RECORD: "${newValue}",\n`;
+      }
+
+      fs.writeFileSync(settingsPath, fileContent);
+
+      await react("✅");
+
+      await reply(
+        newValue === "true"
+          ? "🎙️ Auto Recording + Typing ENABLED"
+          : "⛔ Auto Recording + Typing DISABLED"
+      );
+    } catch (error) {
+      console.error("autorecord error:", error);
+      reply("❌ Failed to update Auto Recording setting.");
+    }
   }
-});
+);
