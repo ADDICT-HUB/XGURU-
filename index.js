@@ -67,6 +67,7 @@ const express = require("express");
 const { promisify } = require('util');
 const stream = require('stream');
 const pipeline = promisify(stream.pipeline);
+
 const {
     MODE: botMode, 
     BOT_PIC: botPic, 
@@ -97,7 +98,9 @@ const {
     STATUS_REPLY_TEXT: statusReplyText,
     AUTO_READ_MESSAGES: autoRead,
     AUTO_BLOCK: autoBlock,
-    AUTO_BIO: autoBio } = config;
+    AUTO_BIO: autoBio 
+} = config;
+
 const PORT = process.env.PORT || 4420;
 const app = express();
 let Gifted;
@@ -108,10 +111,19 @@ app.use(express.static("gift"));
 app.get("/", (req, res) => res.sendFile(__dirname + "/gift/gifted.html"));
 app.listen(PORT, () => console.log(`Server Running on Port: ${PORT}`));
 
-const sessionDir = path.join(__dirname, "gift", "session");
+// ---------------------- Load Session ----------------------
+async function loadSession() {
+    try {
+        const sessionDir = path.join(__dirname, "gift", "session");
+        if (!fs.existsSync(sessionDir)) await fs.mkdir(sessionDir, { recursive: true });
+        console.log("✅ Session directory ready:", sessionDir);
+    } catch (err) {
+        console.error("❌ Failed to load session directory:", err);
+    }
+}
+// ----------------------------------------------------------
 
-loadSession();
-
+loadSession(); // ensure session folder exists
 let store; 
 let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 50;
