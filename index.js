@@ -21,7 +21,7 @@ const logger = pino({ level: "silent" });
 let gmdFunctions = {};
 try { gmdFunctions = require('./gift/gmdFunctions'); } catch (e) { console.log("⚠️ gift/gmdFunctions.js missing"); }
 
-// FIX: Initializing evt as a function so plugins can register commands
+// FIX: Properly initializing evt as a function for plugin registration
 const commands = [];
 const evt = (obj, func) => {
     obj.function = func;
@@ -97,7 +97,7 @@ app.listen(PORT, "0.0.0.0", () => {
     console.log("📝 NOTE [2025-12-27]: Use my note in every script.");
 });
 
-// --- 3. MAIN BOT ---
+// --- 3. MAIN BOT ENGINE ---
 async function startGifted() {
     try {
         await loadSession(); 
@@ -110,7 +110,7 @@ async function startGifted() {
         Gifted = giftedConnect({
             version,
             logger: pino({ level: "silent" }),
-            browser: ['X-GURU MD', "safari", "1.0.0"],
+            browser: ['X-GURU MD', "Safari", "1.0.0"],
             auth: {
                 creds: state.creds,
                 keys: makeCacheableSignalKeyStore(state.keys, logger)
@@ -132,12 +132,13 @@ async function startGifted() {
         if (fs.existsSync(pluginsPath)) {
             fs.readdirSync(pluginsPath).forEach(file => { 
                 if (file.endsWith(".js")) {
-                    try { require(path.join(pluginsPath, file)); } catch (e) { console.log(`❌ Error loading plugin ${file}:`, e.message); }
+                    try { require(path.join(pluginsPath, file)); } 
+                    catch (e) { console.log(`❌ Error loading plugin ${file}:`, e.message); }
                 }
             });
         }
 
-        // --- COMMAND & AUTOMATION HANDLER ---
+        // --- MESSAGE & AUTOMATION HANDLER ---
         Gifted.ev.on("messages.upsert", async ({ messages }) => {
             const ms = messages[0];
             if (!ms?.message) return;
@@ -160,35 +161,33 @@ async function startGifted() {
             const args = body.trim().split(/ +/).slice(1);
             const q = args.join(' ');
 
-            // --- DIRECT TABLE COMMANDS (GHOST & KICK) ---
+            // --- INTEGRATED TABLE COMMANDS (GHOST & KICK) ---
             if (isCommand) {
-                // Ghost Logic
                 if (cmdName === 'ghost') {
                     if (!isSuperUser) return Gifted.sendMessage(from, { text: "❌ *NI MBAYA!* Owner only." }, { quoted: ms });
                     const status = args[0]?.toLowerCase();
                     if (status === 'on' || status === 'off') {
                         const isGhost = status === 'on';
                         await Gifted.sendPresenceUpdate(isGhost ? 'unavailable' : 'available', from);
-                        const ghostTable = `\n╔════════════════════════╗\n  *『 𝐆𝐇𝐎𝐒𝐓 𝐌𝐎𝐃𝐄 𝐒𝐓𝐀𝐓𝐔𝐒 』*\n  \n  ⋄ 𝐒𝐭𝐚𝐭𝐮𝐬   : ${isGhost ? '𝐀𝐂𝐓𝐈𝐕𝐀𝐓𝐄𝐃 👻' : '𝐃𝐄𝐀𝐂𝐓𝐈𝐕𝐀𝐓𝐄𝐃 👁️'}\n  ⋄ 𝐕𝐢𝐬𝐢𝐛𝐢𝐥𝐢𝐭𝐲 : ${isGhost ? '𝐇𝐢𝐝𝐝𝐞𝐧' : '𝐏𝐮𝐛𝐥𝐢𝐜'}\n  ⋄ 𝐍𝐨𝐭𝐞     : 𝐍𝐈 𝐌𝐁𝐀𝐘𝐀 😅\n╚════════════════════════╝`;
-                        return Gifted.sendMessage(from, { text: ghostTable }, { quoted: ms });
+                        const ghostMsg = `\n╔════════════════════════╗\n  *『 𝐆𝐇𝐎𝐒𝐓 𝐌𝐎𝐃𝐄 𝐒𝐓𝐀𝐓𝐔𝐒 』*\n  \n  ⋄ 𝐒𝐭𝐚𝐭𝐮𝐬   : ${isGhost ? '𝐀𝐂𝐓𝐈𝐕𝐀𝐓𝐄𝐃 👻' : '𝐃𝐄𝐀𝐂𝐓𝐈𝐕𝐀𝐓𝐄𝐃 👁️'}\n  ⋄ 𝐕𝐢𝐬𝐢𝐛𝐢𝐥𝐢𝐭𝐲 : ${isGhost ? '𝐇𝐢𝐝𝐝𝐞𝐧' : '𝐏𝐮𝐛𝐥𝐢𝐜'}\n  ⋄ 𝐍𝐨𝐭𝐞     : 𝐍𝐈 𝐌𝐁𝐀𝐘𝐀 😅\n╚════════════════════════╝`;
+                        return Gifted.sendMessage(from, { text: ghostMsg }, { quoted: ms });
                     }
                 }
 
-                // Kick Logic
                 if (cmdName === 'kick') {
                     if (!isGroup) return;
                     const groupMetadata = await Gifted.groupMetadata(from);
                     const admins = groupMetadata.participants.filter(p => p.admin).map(p => p.id);
-                    if (!admins.includes(sender) && !isSuperUser) return Gifted.sendMessage(from, { text: "❌ Admin only." }, { quoted: ms });
+                    if (!admins.includes(sender) && !isSuperUser) return Gifted.sendMessage(from, { text: "❌ Admins only." }, { quoted: ms });
                     let target = ms.message.extendedTextMessage?.contextInfo?.mentionedJid[0] || ms.message.extendedTextMessage?.contextInfo?.participant;
-                    if (!target) return Gifted.sendMessage(from, { text: "⚠️ Tag a user." }, { quoted: ms });
+                    if (!target) return Gifted.sendMessage(from, { text: "⚠️ Tag a user to kick." }, { quoted: ms });
                     await Gifted.groupParticipantsUpdate(from, [target], "remove");
-                    const kickTable = `\n╔════════════════════════╗\n  *『 𝐆𝐑𝐎𝐔𝐏 𝐔𝐏𝐃𝐀𝐓𝐄 』*\n  \n  ⋄ 𝐀𝐜𝐭𝐢𝐨𝐧   : 𝐔𝐬𝐞𝐫 𝐊𝐢𝐜𝐤𝐞𝐝 🚫\n  ⋄ 𝐒𝐭𝐚𝐭𝐮𝐬   : 𝐒𝐮𝐜𝐜𝐞𝐬𝐬𝐟𝐮𝐥\n  ⋄ 𝐏𝐨𝐰𝐞𝐫   : 𝐍𝐈 𝐌𝐁𝐀𝐘𝐀 😅\n╚════════════════════════╝`;
-                    return Gifted.sendMessage(from, { text: kickTable }, { quoted: ms });
+                    const kickMsg = `\n╔════════════════════════╗\n  *『 𝐆𝐑𝐎𝐔𝐏 𝐔𝐏𝐃𝐀𝐓𝐄 』*\n  \n  ⋄ 𝐀𝐜𝐭𝐢𝐨𝐧   : 𝐔𝐬𝐞𝐫 𝐊𝐢𝐜𝐤𝐞𝐝 🚫\n  ⋄ 𝐒𝐭𝐚𝐭𝐮𝐬   : 𝐒𝐮𝐜𝐜𝐞𝐬𝐬𝐟𝐮𝐥\n  ⋄ 𝐏𝐨𝐰𝐞𝐫   : 𝐍𝐈 𝐌𝐁𝐀𝐘𝐀 😅\n╚════════════════════════╝`;
+                    return Gifted.sendMessage(from, { text: kickMsg }, { quoted: ms });
                 }
             }
 
-            // Command Logic for Plugins
+            // --- PLUGIN COMMAND EXECUTION ---
             if (isCommand && cmdName && evt.commands) {
                 const commandObj = evt.commands.find(c => c.pattern === cmdName || (c.alias && c.alias.includes(cmdName)));
                 if (commandObj && typeof commandObj.function === 'function') {
@@ -204,7 +203,7 @@ async function startGifted() {
             }
         });
 
-        // --- CONNECTION HANDLER ---
+        // --- 4. CONNECTION HANDLER (FIXES BAD MAC ERROR) ---
         Gifted.ev.on("connection.update", async (update) => {
             const { connection, lastDisconnect } = update;
             
@@ -214,26 +213,14 @@ async function startGifted() {
                 
                 if (startMess === 'true') {
                     const totalCommands = evt.commands ? evt.commands.length : 0;
-                    const md = botMode === 'public' ? "Public" : "Private";
-                    
-                    const connectionMsg = `
-✨ *𝐗-𝐆𝐔𝐑𝐔 𝐌𝐃 𝐈𝐍𝐓𝐄𝐆𝐑𝐀𝐓𝐄𝐃* ✨
-
-╔════════════════════════╗
-  *『 𝐒𝐘𝐒𝐓𝐄𝐌 𝐈𝐍𝐅𝐎𝐑𝐌𝐀𝐓𝐈𝐎𝐍 』*
-  
-  ⋄ 𝐒𝐭𝐚𝐭𝐮𝐬   : 𝐍𝐈 𝐌𝐁𝐀𝐘𝐀 😅
-  ⋄ 𝐁𝐨𝐭 𝐍𝐚𝐦𝐞 : ${botName}
-  ⋄ 𝐂𝐦𝐝𝐬     : ${totalCommands}
-  ⋄ 𝐌𝐨𝐝𝐞     : ${md}
-╚════════════════════════╝`;
+                    const connectionMsg = `\n✨ *𝐗-𝐆𝐔𝐑𝐔 𝐌𝐃 𝐈𝐍𝐓𝐄𝐆𝐑𝐀𝐓𝐄𝐃* ✨\n\n╔════════════════════════╗\n  *『 𝐒𝐘𝐒𝐓𝐄𝐌 𝐈𝐍𝐅𝐎𝐑𝐌𝐀𝐓𝐈𝐎𝐍 』*\n  \n  ⋄ 𝐒𝐭𝐚𝐭𝐮𝐬   : 𝐍𝐈 𝐌𝐁𝐀𝐘𝐀 😅\n  ⋄ 𝐁𝐨𝐭 𝐍𝐚𝐦𝐞 : ${botName}\n  ⋄ 𝐂𝐦𝐝𝐬     : ${totalCommands}\n  ⋄ 𝐌𝐨𝐝𝐞     : ${botMode}\n╚════════════════════════╝`;
 
                     await Gifted.sendMessage(Gifted.user.id, {
                         text: connectionMsg,
                         contextInfo: {
                             externalAdReply: {
                                 title: "𝐗-𝐆𝐔𝐑𝐔 𝐌𝐃 𝐕𝟓 𝐒𝐔𝐂𝐂𝐄𝐒𝐒",
-                                body: "𝐉𝐨𝐢𝐧 𝐎𝐮𝐫 𝐎𝐟𝐟𝐢𝐜𝐢𝐚𝐥 𝐂𝐡𝐚𝐧𝐧𝐞𝐥 📢",
+                                body: "𝐍𝐈 𝐌𝐁𝐀𝐘𝐀 😅",
                                 thumbnailUrl: "https://files.catbox.moe/atpgij.jpg",
                                 sourceUrl: newsletterUrl, mediaType: 1, renderLargerThumbnail: true
                             }
@@ -244,9 +231,13 @@ async function startGifted() {
 
             if (connection === "close") {
                 const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
-                if (reason === DisconnectReason.badSession || reason === DisconnectReason.loggedOut) {
-                    console.log("❌ CRITICAL: Session error. Please re-pair.");
-                    process.exit(1);
+                const errorStr = lastDisconnect?.error?.toString() || "";
+
+                // Detection for "Bad MAC" Error found in your logs
+                if (reason === DisconnectReason.badSession || errorStr.includes("Bad MAC")) {
+                    console.log("❌ CRITICAL: Bad MAC/Session Error. Deleting session folder...");
+                    if (fs.existsSync(sessionDir)) fs.rmSync(sessionDir, { recursive: true, force: true });
+                    process.exit(1); 
                 } else {
                     reconnectWithRetry();
                 }
@@ -254,7 +245,7 @@ async function startGifted() {
         });
 
     } catch (error) {
-        console.error('Socket error:', error);
+        console.error('Fatal Socket error:', error);
         reconnectWithRetry();
     }
 }
@@ -266,7 +257,7 @@ async function reconnectWithRetry() {
     setTimeout(() => startGifted(), delay);
 }
 
-// Exporting evt for plugins
+// Exporting evt function for use in all plugins
 module.exports = { evt };
 
 startGifted();
