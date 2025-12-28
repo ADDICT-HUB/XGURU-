@@ -17,11 +17,7 @@ const {
 const config = require('./config'); 
 const logger = pino({ level: "silent" });
 
-// --- 0. SAFETY MODULE LOADING ---
-let gmdFunctions = {};
-try { gmdFunctions = require('./gift/gmdFunctions'); } catch (e) { console.log("⚠️ gift/gmdFunctions.js missing"); }
-
-// FIX: Properly initializing evt as a function for plugin registration
+// --- 0. COMMAND REGISTRY (FIXED: Must be defined before loading plugins) ---
 const commands = [];
 const evt = (obj, func) => {
     obj.function = func;
@@ -29,6 +25,12 @@ const evt = (obj, func) => {
     return obj;
 };
 evt.commands = commands;
+// Export immediately so plugins can see it
+module.exports = { evt };
+
+// --- 1. SAFETY MODULE LOADING ---
+let gmdFunctions = {};
+try { gmdFunctions = require('./gift/gmdFunctions'); } catch (e) { console.log("⚠️ gift/gmdFunctions.js missing"); }
 
 let gmdStore;
 try { gmdStore = require('./gift/store'); } catch (e) { console.log("⚠️ gift/store.js missing"); }
@@ -68,7 +70,7 @@ const MAX_RECONNECT_ATTEMPTS = 50;
 const RECONNECT_DELAY = 5000;
 const emojis = ["❤️", "✨", "🔥", "⚡", "🤖"];
 
-// --- 1. SESSION LOADING ---
+// --- 2. SESSION LOADING ---
 const sessionDir = path.join(__dirname, "gift", "session");
 
 async function loadSession() {
@@ -85,7 +87,7 @@ async function loadSession() {
     }
 }
 
-// --- 2. SERVER ---
+// --- 3. SERVER ---
 app.use(express.static("gift"));
 app.get("/", (req, res) => {
     const htmlPath = path.join(__dirname, "gift", "gifted.html");
@@ -97,7 +99,7 @@ app.listen(PORT, "0.0.0.0", () => {
     console.log("📝 NOTE [2025-12-27]: Use my note in every script.");
 });
 
-// --- 3. MAIN BOT ENGINE ---
+// --- 4. MAIN BOT ENGINE ---
 async function startGifted() {
     try {
         await loadSession(); 
@@ -127,7 +129,7 @@ async function startGifted() {
         if (store && Gifted.ev) store.bind(Gifted.ev);
         Gifted.ev.on('creds.update', saveCreds);
 
-        // --- PLUGIN LOADING ---
+        // --- PLUGIN LOADING (FIXED: Load after evt is exported) ---
         const pluginsPath = path.join(__dirname, "gifted");
         if (fs.existsSync(pluginsPath)) {
             fs.readdirSync(pluginsPath).forEach(file => { 
@@ -153,12 +155,19 @@ async function startGifted() {
                 await GiftedAutoReact(emojis[Math.floor(Math.random() * emojis.length)], ms, Gifted);
             }
 
-            // Message Parsing
+            // Message Parsing (FIXED: Added checks for null/undefined body)
             const mtype = getContentType(ms.message);
-            const body = (mtype === 'conversation') ? ms.message.conversation : (mtype === 'extendedTextMessage') ? ms.message.extendedTextMessage.text : (mtype === 'imageMessage' || mtype === 'videoMessage') ? ms.message[mtype].caption : '';
-            const isCommand = body.startsWith(botPrefix);
+            const body = (mtype === 'conversation') ? ms.message.conversation : 
+                         (mtype === 'extendedTextMessage') ? ms.message.extendedTextMessage.text : 
+                         (mtype === 'imageMessage' || mtype === 'videoMessage') ? ms.message[mtype].caption : 
+                         (mtype === 'templateButtonReplyMessage') ? ms.message.templateButtonReplyMessage.selectedId :
+                         (mtype === 'buttonsResponseMessage') ? ms.message.buttonsResponseMessage.selectedButtonId :
+                         (mtype === 'listResponseMessage') ? ms.message.listResponseMessage.singleSelectReply.selectedRowId : '';
+
+            // Check if body exists before using startsWith
+            const isCommand = body && body.startsWith(botPrefix);
             const cmdName = isCommand ? body.slice(botPrefix.length).trim().split(' ').shift().toLowerCase() : '';
-            const args = body.trim().split(/ +/).slice(1);
+            const args = body ? body.trim().split(/ +/).slice(1) : [];
             const q = args.join(' ');
 
             // --- INTEGRATED TABLE COMMANDS (GHOST & KICK) ---
@@ -203,7 +212,7 @@ async function startGifted() {
             }
         });
 
-        // --- 4. CONNECTION HANDLER (FIXES BAD MAC ERROR) ---
+        // --- 5. CONNECTION HANDLER ---
         Gifted.ev.on("connection.update", async (update) => {
             const { connection, lastDisconnect } = update;
             
@@ -233,9 +242,8 @@ async function startGifted() {
                 const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
                 const errorStr = lastDisconnect?.error?.toString() || "";
 
-                // Detection for "Bad MAC" Error found in your logs
                 if (reason === DisconnectReason.badSession || errorStr.includes("Bad MAC")) {
-                    console.log("❌ CRITICAL: Bad MAC/Session Error. Deleting session folder...");
+                    console.log("❌ CRITICAL: Bad MAC/Session Error. Clearing session...");
                     if (fs.existsSync(sessionDir)) fs.rmSync(sessionDir, { recursive: true, force: true });
                     process.exit(1); 
                 } else {
@@ -256,8 +264,5 @@ async function reconnectWithRetry() {
     const delay = Math.min(RECONNECT_DELAY * Math.pow(2, reconnectAttempts - 1), 300000);
     setTimeout(() => startGifted(), delay);
 }
-
-// Exporting evt function for use in all plugins
-module.exports = { evt };
 
 startGifted();
