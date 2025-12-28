@@ -17,12 +17,21 @@ const {
 const config = require('./config'); 
 const logger = pino({ level: "silent" });
 
+// --- 0. SAFETY MODULE LOADING ---
+// This prevents the bot from crashing if your 'gift' folder files are missing
+let gmdFunctions = {};
+try { gmdFunctions = require('./gift/gmdFunctions'); } catch (e) { console.log("⚠️ gift/gmdFunctions.js missing"); }
+
+let evt = { commands: [] };
+try { evt = require('./gift/events'); } catch (e) { console.log("⚠️ gift/events.js missing"); }
+
+let gmdStore;
+try { gmdStore = require('./gift/store'); } catch (e) { console.log("⚠️ gift/store.js missing"); }
+
 const { 
     gmdBuffer, gmdJson, uploadToCatbox, getMediaBuffer, GiftedTechApi,
     GiftedAutoBio, GiftedAnticall, GiftedAntiDelete, GiftedAutoReact 
-} = require('./gift/gmdFunctions');
-const evt = require('./gift/events');
-const gmdStore = require('./gift/store');
+} = gmdFunctions;
 
 const {
     MODE: botMode, 
@@ -73,9 +82,14 @@ async function loadSession() {
 
 // --- 2. SERVER ---
 app.use(express.static("gift"));
-app.get("/", (req, res) => res.sendFile(path.join(__dirname, "gift", "gifted.html")));
+app.get("/", (req, res) => {
+    const htmlPath = path.join(__dirname, "gift", "gifted.html");
+    if (fs.existsSync(htmlPath)) res.sendFile(htmlPath);
+    else res.send("🚀 SERVER ONLINE | NI MBAYA 😅");
+});
 app.listen(PORT, "0.0.0.0", () => {
     console.log("🚀 SERVER ONLINE | NI MBAYA 😅");
+    console.log("📝 NOTE [2025-12-27]: Use my note in every script.");
 });
 
 // --- 3. MAIN BOT ---
@@ -85,8 +99,8 @@ async function startGifted() {
         const { version } = await fetchLatestWaWebVersion();
         const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
         
-        if (store) store.destroy();
-        store = new gmdStore();
+        if (store && typeof store.destroy === 'function') store.destroy();
+        if (gmdStore) store = new gmdStore();
         
         Gifted = giftedConnect({
             version,
@@ -97,7 +111,7 @@ async function startGifted() {
                 keys: makeCacheableSignalKeyStore(state.keys, logger)
             },
             getMessage: async (key) => {
-                if (store) {
+                if (store && typeof store.loadMessage === 'function') {
                     const msg = store.loadMessage(key.remoteJid, key.id);
                     return msg?.message || undefined;
                 }
@@ -105,14 +119,16 @@ async function startGifted() {
             },
         });
 
-        store.bind(Gifted.ev);
+        if (store && Gifted.ev) store.bind(Gifted.ev);
         Gifted.ev.on('creds.update', saveCreds);
 
         // --- PLUGIN LOADING ---
         const pluginsPath = path.join(__dirname, "gifted");
         if (fs.existsSync(pluginsPath)) {
             fs.readdirSync(pluginsPath).forEach(file => { 
-                if (file.endsWith(".js")) require(path.join(pluginsPath, file)); 
+                if (file.endsWith(".js")) {
+                    try { require(path.join(pluginsPath, file)); } catch (e) { console.log(`❌ Error loading plugin ${file}:`, e.message); }
+                }
             });
         }
 
@@ -126,21 +142,20 @@ async function startGifted() {
             const sender = isGroup ? (ms.key.participant || ms.key.remoteJid) : ms.key.remoteJid;
 
             // Automation: Auto-React
-            if (autoReact === "true" && !ms.key.fromMe) {
+            if (autoReact === "true" && !ms.key.fromMe && typeof GiftedAutoReact === 'function') {
                 await GiftedAutoReact(emojis[Math.floor(Math.random() * emojis.length)], ms, Gifted);
             }
 
             // Command Logic
             const body = (getContentType(ms.message) === 'conversation') ? ms.message.conversation : (ms.message.extendedTextMessage) ? ms.message.extendedTextMessage.text : '';
             const isCommand = body.startsWith(botPrefix);
-            const cmd = isCommand ? body.slice(botPrefix.length).trim().split(' ').shift().toLowerCase() : '';
+            const cmdName = isCommand ? body.slice(botPrefix.length).trim().split(' ').shift().toLowerCase() : '';
 
-            if (isCommand && cmd) {
-                const commandObj = evt.commands.find(c => c.pattern === cmd || (c.aliases && c.aliases.includes(cmd)));
-                if (commandObj) {
-                    // This prepares the 'conText' that your plugins expect
+            if (isCommand && cmdName && evt.commands) {
+                const commandObj = evt.commands.find(c => c.pattern === cmdName || (c.alias && c.alias.includes(cmdName)));
+                if (commandObj && typeof commandObj.function === 'function') {
                     const conText = {
-                        m: ms, Gifted, from, sender, isGroup, body, command: cmd, 
+                        m: ms, Gifted, from, sender, isGroup, body, command: cmdName, 
                         args: body.trim().split(/ +/).slice(1),
                         reply: (text) => Gifted.sendMessage(from, { text }, { quoted: ms }),
                         react: (emoji) => Gifted.sendMessage(from, { react: { key: ms.key, text: emoji } }),
@@ -160,7 +175,7 @@ async function startGifted() {
                 reconnectAttempts = 0;
                 
                 if (startMess === 'true') {
-                    const totalCommands = evt.commands.length;
+                    const totalCommands = evt.commands ? evt.commands.length : 0;
                     const md = botMode === 'public' ? "Public" : "Private";
                     
                     const connectionMsg = `
@@ -182,9 +197,7 @@ async function startGifted() {
                                 title: "𝐗-𝐆𝐔𝐑𝐔 𝐌𝐃 𝐕𝟓 𝐒𝐔𝐂𝐂𝐄𝐒𝐒",
                                 body: "𝐉𝐨𝐢𝐧 𝐎𝐮𝐫 𝐎𝐟𝐟𝐢𝐜𝐢𝐚𝐥 𝐂𝐡𝐚𝐧𝐧𝐞𝐥 📢",
                                 thumbnailUrl: "https://files.catbox.moe/atpgij.jpg",
-                                sourceUrl: newsletterUrl,
-                                mediaType: 1,
-                                renderLargerThumbnail: true
+                                sourceUrl: newsletterUrl, mediaType: 1, renderLargerThumbnail: true
                             }
                         }
                     });
@@ -215,4 +228,3 @@ async function reconnectWithRetry() {
 }
 
 startGifted();
-
