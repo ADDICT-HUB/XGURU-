@@ -1,32 +1,22 @@
-// general.js - Fixed version
+// general.js - FULL EXPANDED VERSION
 // Author: NI MBAYA
 // Username: GuruTech
 // Botname: XGURU
 // Repository: https://github.com/ADDICT-HUB/XGURU
-// Newsletter: 120363421164015033@newsletter
 
 const { evt, gmdBuffer, gmdJson, getMediaBuffer } = require("../gift");
 const axios = require("axios");
 const fs = require("fs-extra");
-const FormData = require("form-data");
 const config = require("../config");
 
-// Add missing formatBytes function
+// --- UTILITY FUNCTIONS (EXPANDED) ---
 function formatBytes(bytes, decimals = 2) {
     if (bytes === 0) return '0 Bytes';
-    
     const k = 1024;
     const dm = decimals < 0 ? 0 : decimals;
     const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
-    
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
-}
-
-// Add other missing utility functions
-function getRandom(ext) {
-    return `${Math.floor(Math.random() * 10000)}${ext}`;
 }
 
 function runtime(seconds) {
@@ -35,158 +25,138 @@ function runtime(seconds) {
     var h = Math.floor(seconds % (3600 * 24) / 3600);
     var m = Math.floor(seconds % 3600 / 60);
     var s = Math.floor(seconds % 60);
-    var dDisplay = d > 0 ? d + (d == 1 ? " day, " : " days, ") : "";
-    var hDisplay = h > 0 ? h + (h == 1 ? " hour, " : " hours, ") : "";
-    var mDisplay = m > 0 ? m + (m == 1 ? " minute, " : " minutes, ") : "";
-    var sDisplay = s > 0 ? s + (s == 1 ? " second" : " seconds") : "";
-    return dDisplay + hDisplay + mDisplay + sDisplay;
+    return `${d}d ${h}h ${m}m ${s}s`;
 }
 
-// Command patterns
+// --- COMMANDS ---
+
+// 1. GHOST COMMAND (GURU TECH EXCLUSIVE)
 evt({
-    pattern: "ping",
-    fromMe: true,
-    desc: "Check bot response time",
-    type: "user"
-}, async (message, match) => {
-    const start = new Date().getTime();
-    await message.reply("🏓 Pinging...");
-    const end = new Date().getTime();
-    const responseTime = end - start;
+    pattern: "ghost",
+    desc: "Toggle invisibility status",
+    category: "owner",
+    use: "ghost on/off"
+}, async (from, Gifted, { args, isSuperUser, reply }) => {
+    if (!isSuperUser) return reply("❌ *NI MBAYA!* Access Denied. Owner only.");
     
-    await message.reply(`✅ *XGURU Bot Status*\n\n` +
-                       `🏓 *Ping:* ${responseTime}ms\n` +
-                       `🤖 *Bot:* XGURU by NI MBAYA\n` +
-                       `👤 *User:* GuruTech\n` +
-                       `📦 *Repo:* https://github.com/ADDICT-HUB/XGURU\n` +
-                       `📬 *Updates:* 120363421164015033@newsletter`);
+    const status = args[0]?.toLowerCase();
+    if (status === 'on') {
+        config.PRESENCE = 'unavailable';
+        await Gifted.sendPresenceUpdate('unavailable', from);
+        return reply("👻 *𝐆𝐇𝐎𝐒𝐓 𝐌𝐎𝐃𝐄 𝐀𝐂𝐓𝐈𝐕𝐀𝐓𝐄𝐃*\n\nStatus: Hidden\nVisibility: NI MBAYA 😅");
+    } else if (status === 'off') {
+        config.PRESENCE = 'available';
+        await Gifted.sendPresenceUpdate('available', from);
+        return reply("👁️ *𝐆𝐇𝐎𝐒𝐓 𝐌𝐎𝐃𝐄 𝐃𝐄𝐀𝐂𝐓𝐈𝐕𝐀𝐓𝐄𝐃*\n\nStatus: Online\nVisibility: Public");
+    } else {
+        return reply(`*Current Presence:* ${config.PRESENCE}\n*Usage:* ${config.PREFIX}ghost on/off`);
+    }
 });
 
+// 2. KICK COMMAND (GROUP MANAGEMENT)
 evt({
-    pattern: "runtime",
-    fromMe: true,
-    desc: "Check bot uptime",
-    type: "user"
-}, async (message) => {
-    const uptime = process.uptime();
-    await message.reply(`⏰ *Bot Uptime:* ${runtime(uptime)}\n` +
-                       `🤖 *XGURU Bot* - Powered by NI MBAYA`);
+    pattern: "kick",
+    desc: "Remove a user from group",
+    category: "group"
+}, async (from, Gifted, { m, isAdmin, isBotAdmin, isSuperUser, reply }) => {
+    if (!m.isGroup) return reply("❌ Group only command.");
+    if (!isAdmin && !isSuperUser) return reply("❌ You are not an Admin.");
+    if (!isBotAdmin) return reply("❌ Make me Admin first.");
+
+    let user = m.message.extendedTextMessage?.contextInfo?.mentionedJid[0] || m.message.extendedTextMessage?.contextInfo?.participant;
+    if (!user) return reply("⚠️ Tag the person to kick.");
+
+    await Gifted.groupParticipantsUpdate(from, [user], "remove");
+    return reply("✅ Member removed from the squad.");
 });
 
-evt({
-    pattern: "owner",
-    fromMe: false,
-    desc: "Get bot owner info",
-    type: "user"
-}, async (message) => {
-    await message.reply(`👑 *XGURU Bot Owner*\n\n` +
-                       `📛 *Name:* NI MBAYA\n` +
-                       `👤 *Username:* GuruTech\n` +
-                       `📱 *Contact:* ${config.OWNER_NUMBER || "Not set"}\n` +
-                       `🤖 *Bot:* XGURU\n` +
-                       `📦 *Repository:* https://github.com/ADDICT-HUB/XGURU\n` +
-                       `📬 *Newsletter:* 120363421164015033@newsletter`);
-});
-
+// 3. MENU COMMAND (NI MBAYA TABLE STRUCTURE)
 evt({
     pattern: "menu",
-    fromMe: false,
-    desc: "Show bot menu",
-    type: "user"
-}, async (message) => {
-    const totalCommands = evt.commands ? evt.commands.filter(cmd => cmd.pattern).length : 0;
-    
-    await message.reply(`📱 *XGURU BOT MENU*\n\n` +
-                       `🤖 *Bot:* XGURU\n` +
-                       `👤 *Author:* NI MBAYA\n` +
-                       `👥 *Username:* GuruTech\n` +
-                       `📦 *Repo:* https://github.com/ADDICT-HUB/XGURU\n` +
-                       `📬 *Updates:* 120363421164015033@newsletter\n` +
-                       `🔧 *Commands:* ${totalCommands}\n` +
-                       `⚙️ *Prefix:* ${config.PREFIX}\n\n` +
-                       `📚 *Categories:*\n` +
-                       `• 🤖 General\n` +
-                       `• 🎨 Media\n` +
-                       `• 🛠️ Tools\n` +
-                       `• 👥 Group\n` +
-                       `• ⚙️ Owner\n\n` +
-                       `💡 Use *${config.PREFIX}help* for more info`);
+    desc: "Show full command list",
+    category: "user"
+}, async (from, Gifted, { botName, botPrefix, ownerName, reply }) => {
+    const totalCommands = evt.commands.length;
+    const menu = `
+✨ *𝐗-𝐆𝐔𝐑𝐔 𝐌𝐃 𝐂𝐎𝐌𝐌𝐀𝐍𝐃𝐒* ✨
+
+╔════════════════════════╗
+  *『 𝐒𝐘𝐒𝐓𝐄𝐌 𝐈𝐍𝐅𝐎𝐑𝐌𝐀𝐓𝐈𝐎𝐍 』*
+  
+  ⋄ 𝐒𝐭𝐚𝐭𝐮𝐬   : 𝐍𝐈 𝐌𝐁𝐀𝐘𝐀 😅
+  ⋄ 𝐁𝐨𝐭      : ${botName}
+  ⋄ 𝐀𝐮𝐭𝐡𝐨𝐫   : 𝐍𝐈 𝐌𝐁𝐀𝐘𝐀
+  ⋄ 𝐔𝐬𝐞𝐫     : ${ownerName}
+  ⋄ 𝐏𝐫𝐞𝐟𝐢𝐱   : [ ${botPrefix} ]
+  ⋄ 𝐂𝐦𝐝𝐬     : ${totalCommands}
+╚════════════════════════╝
+
+🛠️ *𝐎𝐖𝐍𝐄𝐑 𝐂𝐎𝐌𝐌𝐀𝐍𝐃𝐒*
+⋄ ${botPrefix}ghost (on/off)
+⋄ ${botPrefix}mode (public/private)
+⋄ ${botPrefix}setprefix (symbol)
+
+👥 *𝐆𝐑𝐎𝐔𝐏 𝐂𝐎𝐌𝐌𝐀𝐍𝐃𝐒*
+⋄ ${botPrefix}kick (tag)
+⋄ ${botPrefix}promote (tag)
+⋄ ${botPrefix}demote (tag)
+⋄ ${botPrefix}tagall
+
+🤖 *𝐆𝐄𝐍𝐄𝐑𝐀𝐋 𝐂𝐎𝐌𝐌𝐀𝐍𝐃𝐒*
+⋄ ${botPrefix}ping
+⋄ ${botPrefix}runtime
+⋄ ${botPrefix}repo
+⋄ ${botPrefix}owner
+
+📢 *𝐉𝐎𝐈𝐍 𝐔𝐏𝐃𝐀𝐓𝐄𝐒*
+${config.NEWSLETTER_URL}
+
+> *${config.CAPTION}*`;
+
+    await Gifted.sendMessage(from, {
+        text: menu,
+        contextInfo: {
+            externalAdReply: {
+                title: "𝐗-𝐆𝐔𝐑𝐔 𝐌𝐃 𝐕𝟓",
+                body: "𝐆𝐮𝐫𝐮𝐓𝐞𝐜𝐡 𝐎𝐟𝐟𝐢𝐜𝐢𝐚𝐥",
+                thumbnailUrl: "https://files.catbox.moe/atpgij.jpg",
+                sourceUrl: config.NEWSLETTER_URL,
+                mediaType: 1
+            }
+        }
+    });
 });
 
+// 4. PING COMMAND
 evt({
-    pattern: "help",
-    fromMe: false,
-    desc: "Show command help",
-    type: "user"
-}, async (message, match) => {
-    if (!match) {
-        await message.reply(`ℹ️ *XGURU Bot Help*\n\n` +
-                           `Use *${config.PREFIX}help <command>* for specific help\n` +
-                           `Example: *${config.PREFIX}help ping*\n\n` +
-                           `📦 *Repository:* https://github.com/ADDICT-HUB/XGURU\n` +
-                           `📬 *Newsletter:* 120363421164015033@newsletter`);
-        return;
-    }
-    
-    const cmd = match.trim().toLowerCase();
-    const command = evt.commands?.find(c => 
-        c.pattern === cmd || (c.aliases && c.aliases.includes(cmd))
-    );
-    
-    if (command) {
-        await message.reply(`📖 *${cmd} Command*\n\n` +
-                           `📝 *Description:* ${command.desc || "No description"}\n` +
-                           `🔧 *Type:* ${command.type || "user"}\n` +
-                           `⚙️ *Usage:* ${config.PREFIX}${command.pattern}\n` +
-                           `🤖 *XGURU Bot* - by NI MBAYA`);
-    } else {
-        await message.reply(`❌ Command *${cmd}* not found\n` +
-                           `💡 Use *${config.PREFIX}menu* to see all commands`);
-    }
+    pattern: "ping",
+    desc: "Check response speed",
+    category: "user"
+}, async (from, Gifted, { reply }) => {
+    const start = new Date().getTime();
+    const { key } = await Gifted.sendMessage(from, { text: "🚀" });
+    const end = new Date().getTime();
+    await Gifted.sendMessage(from, { text: `⚡ *𝐏𝐎𝐍𝐆:* ${end - start}𝐦𝐬`, edit: key });
 });
 
+// 5. RUNTIME COMMAND
+evt({
+    pattern: "runtime",
+    desc: "Bot active time",
+    category: "user"
+}, async (from, Gifted, { reply }) => {
+    return reply(`⏰ *𝐗-𝐆𝐔𝐑𝐔 𝐔𝐏𝐓𝐈𝐌𝐄:* ${runtime(process.uptime())}`);
+});
+
+// 6. REPO COMMAND
 evt({
     pattern: "repo",
-    fromMe: false,
-    desc: "Get bot repository link",
-    type: "user"
-}, async (message) => {
-    await message.reply(`📦 *XGURU Repository*\n\n` +
-                       `🔗 *GitHub:* https://github.com/ADDICT-HUB/XGURU\n` +
-                       `👤 *Author:* NI MBAYA\n` +
-                       `👥 *Username:* GuruTech\n` +
-                       `🤖 *Bot:* XGURU\n` +
-                       `📬 *Newsletter:* 120363421164015033@newsletter\n\n` +
-                       `⭐ Star the repo if you like it!`);
+    desc: "Source code link",
+    category: "user"
+}, async (from, Gifted, { reply }) => {
+    const repo = `📦 *𝐗-𝐆𝐔𝐑𝐔 𝐑𝐄𝐏𝐎𝐒𝐈𝐓𝐎𝐑𝐘*\n\n🔗 *Link:* https://github.com/ADDICT-HUB/XGURU\n\n*Author:* NI MBAYA\n*Status:* NI MBAYA 😅`;
+    return reply(repo);
 });
 
-evt({
-    pattern: "info",
-    fromMe: false,
-    desc: "Get bot information",
-    type: "user"
-}, async (message) => {
-    const totalCommands = evt.commands ? evt.commands.filter(cmd => cmd.pattern).length : 0;
-    const uptime = process.uptime();
-    
-    await message.reply(`🤖 *XGURU BOT INFORMATION*\n\n` +
-                       `📛 *Name:* XGURU\n` +
-                       `👤 *Author:* NI MBAYA\n` +
-                       `👥 *Username:* GuruTech\n` +
-                       `📱 *Owner:* ${config.OWNER_NUMBER || "Not set"}\n` +
-                       `⚙️ *Prefix:* ${config.PREFIX}\n` +
-                       `🔧 *Commands:* ${totalCommands}\n` +
-                       `⏰ *Uptime:* ${runtime(uptime)}\n` +
-                       `📦 *Repository:* https://github.com/ADDICT-HUB/XGURU\n` +
-                       `📬 *Newsletter:* 120363421164015033@newsletter\n` +
-                       `🔄 *Version:* 2.0.0`);
-});
-
-// Export the utility functions
-module.exports = {
-    formatBytes,
-    getRandom,
-    runtime
-};
-
-console.log("✅ General plugin loaded - XGURU by NI MBAYA");
+module.exports = { formatBytes, runtime };
+console.log("✅ General plugin fully loaded - XGURU by NI MBAYA");
