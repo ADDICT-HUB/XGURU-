@@ -28,7 +28,7 @@ const {
     evt, 
     logger,
     emojis,
-    gmdStore,
+    gmdStore, // This might not be a constructor but an object
     commands,
     setSudo,
     delSudo,
@@ -131,17 +131,26 @@ app.listen(PORT, () => console.log(`✅ XGURU Server Running on Port: ${PORT}`))
 
 const sessionDir = path.join(__dirname, "gift", "session");
 
-// FIXED: Check if loadSession is a function before calling it
+// FIXED: Safe initialization - don't call loadSession if it's not a function
 async function initializeSession() {
     try {
         console.log(`🔧 Initializing XGURU Session - ${XGURU_CONFIG.BOT_NAME} by ${XGURU_CONFIG.AUTHOR}`);
         
+        // Check if loadSession exists and is a function
         if (typeof loadSession === 'function') {
             await loadSession();
             console.log("✅ Session loaded successfully");
+        } else if (loadSession !== undefined) {
+            console.log("ℹ️ loadSession exists but is not a function, trying alternative approach");
+            // Try to call it as is (might be an async function or promise)
+            try {
+                await Promise.resolve(loadSession);
+                console.log("✅ Session initialized via alternative method");
+            } catch (err) {
+                console.log("⚠️ Could not initialize session, continuing without it");
+            }
         } else {
-            console.warn("⚠️ loadSession is not a function, skipping session initialization");
-            console.log("ℹ️ Make sure the function is properly exported in ./gift module");
+            console.log("⚠️ loadSession is undefined, skipping session initialization");
         }
     } catch (error) {
         console.error("❌ Error initializing session:", error.message);
@@ -170,24 +179,49 @@ async function startGifted() {
         const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
         
         if (store) {
-            store.destroy();
+            try {
+                if (typeof store.destroy === 'function') {
+                    store.destroy();
+                }
+            } catch (e) {
+                console.log("⚠️ Error destroying store:", e.message);
+            }
         }
-        store = new gmdStore();
+        
+        // FIXED: Check if gmdStore is a constructor or an object
+        if (gmdStore && typeof gmdStore === 'function') {
+            store = new gmdStore();
+            console.log("✅ Store initialized with constructor");
+        } else if (gmdStore && typeof gmdStore.createStore === 'function') {
+            store = gmdStore.createStore();
+            console.log("✅ Store initialized with factory method");
+        } else if (gmdStore) {
+            store = gmdStore;
+            console.log("✅ Store used directly (already instantiated)");
+        } else {
+            // Create a simple store if gmdStore is not available
+            store = {
+                loadMessage: () => null,
+                bind: () => {},
+                destroy: () => {}
+            };
+            console.log("⚠️ Using fallback store - gmdStore not available");
+        }
         
         const giftedSock = {
             version,
             logger: pino({ level: "silent" }),
-            browser: ['XGURU', "safari", "1.0.0"],
+            browser: [XGURU_CONFIG.BOT_NAME, "safari", "1.0.0"],
             auth: {
                 creds: state.creds,
                 keys: makeCacheableSignalKeyStore(state.keys, logger)
             },
             getMessage: async (key) => {
-                if (store) {
+                if (store && store.loadMessage) {
                     const msg = store.loadMessage(key.remoteJid, key.id);
                     return msg?.message || undefined;
                 }
-                return { conversation: 'Error occurred' };
+                return { conversation: 'Message not found' };
             },
             connectTimeoutMs: 60000,
             defaultQueryTimeoutMs: 60000,
@@ -220,7 +254,9 @@ async function startGifted() {
 
         Gifted = giftedConnect(giftedSock);
         
-        store.bind(Gifted.ev);
+        if (store && store.bind) {
+            store.bind(Gifted.ev);
+        }
 
         Gifted.ev.process(async (events) => {
             if (events['creds.update']) {
@@ -230,7 +266,7 @@ async function startGifted() {
 
         if (autoReact === "true") {
             Gifted.ev.on('messages.upsert', async (mek) => {
-                ms = mek.messages[0];
+                const ms = mek.messages[0];
                 try {
                     if (ms.key.fromMe) return;
                     if (!ms.key.fromMe && ms.message) {
@@ -395,7 +431,7 @@ async function startGifted() {
 
                     if (autoReplyStatus === "true") {
                         if (mek.key.fromMe) return;
-                        const customMessage = statusReplyText || '✅ Status Viewed By XGURU';
+                        const customMessage = statusReplyText || `✅ Status Viewed By ${XGURU_CONFIG.BOT_NAME}`;
                         await Gifted.sendMessage(
                             fromJid,
                             { text: customMessage },
@@ -786,7 +822,7 @@ async function startGifted() {
                         console.error(`Command error [${cmd}]:`, error);
                         try {
                             await Gifted.sendMessage(from, {
-                                text: `🚨 XGURU Command failed: ${error.message}`,
+                                text: `🚨 ${XGURU_CONFIG.BOT_NAME} Command failed: ${error.message}`,
                                 ...createContext(messageAuthor, {
                                     title: XGURU_CONFIG.BOT_NAME + " Error",
                                     body: "Command execution failed"
@@ -809,8 +845,13 @@ async function startGifted() {
             }
 
             if (connection === "open") {
-                await Gifted.newsletterFollow(newsletterJid);
-                await Gifted.groupAcceptInvite(groupJid);
+                try {
+                    if (newsletterJid) await Gifted.newsletterFollow(newsletterJid);
+                    if (groupJid) await Gifted.groupAcceptInvite(groupJid);
+                } catch (e) {
+                    console.log("⚠️ Newsletter/Group initialization error:", e.message);
+                }
+                
                 console.log(`✅ ${XGURU_CONFIG.BOT_NAME} Connection Instance is Online`);
                 reconnectAttempts = 0;
                 
@@ -901,7 +942,7 @@ async function startGifted() {
         });
 
         const cleanup = () => {
-            if (store) {
+            if (store && typeof store.destroy === 'function') {
                 store.destroy();
             }
         };
@@ -936,16 +977,23 @@ async function reconnectWithRetry() {
     }, delay);
 }
 
-// Initialize session before starting
-setTimeout(async () => {
+// Initialize and start
+(async () => {
     try {
         await initializeSession();
-        await startGifted();
-    } catch (err) {
-        console.error("Initialization error:", err);
+        setTimeout(async () => {
+            try {
+                await startGifted();
+            } catch (err) {
+                console.error("Initialization error:", err);
+                reconnectWithRetry();
+            }
+        }, 2000);
+    } catch (error) {
+        console.error("Setup error:", error);
         reconnectWithRetry();
     }
-}, 5000);
+})();
 
 /**
  * XGURU WhatsApp Bot - Enhanced Version
