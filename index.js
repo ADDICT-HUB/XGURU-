@@ -17,16 +17,13 @@ const {
 const config = require('./config'); 
 const logger = pino({ level: "silent" });
 
-// --- 0. COMMAND REGISTRY (FIXED: Must be defined before loading plugins) ---
-const commands = [];
-const evt = (obj, func) => {
+// --- 0. GLOBAL COMMAND REGISTRY (FIXED: Global scope for plugins) ---
+global.commands = [];
+global.evt = (obj, func) => {
     obj.function = func;
-    commands.push(obj);
+    global.commands.push(obj);
     return obj;
 };
-evt.commands = commands;
-// Export immediately so plugins can see it
-module.exports = { evt };
 
 // --- 1. SAFETY MODULE LOADING ---
 let gmdFunctions = {};
@@ -129,7 +126,7 @@ async function startGifted() {
         if (store && Gifted.ev) store.bind(Gifted.ev);
         Gifted.ev.on('creds.update', saveCreds);
 
-        // --- PLUGIN LOADING (FIXED: Load after evt is exported) ---
+        // --- PLUGIN LOADING ---
         const pluginsPath = path.join(__dirname, "gifted");
         if (fs.existsSync(pluginsPath)) {
             fs.readdirSync(pluginsPath).forEach(file => { 
@@ -150,55 +147,33 @@ async function startGifted() {
             const sender = isGroup ? (ms.key.participant || ms.key.remoteJid) : ms.key.remoteJid;
             const isSuperUser = [ownerNumber, botId.split('@')[0]].some(v => sender.includes(v));
 
-            // Automation: Auto-React
             if (autoReact === "true" && !ms.key.fromMe && typeof GiftedAutoReact === 'function') {
                 await GiftedAutoReact(emojis[Math.floor(Math.random() * emojis.length)], ms, Gifted);
             }
 
-            // Message Parsing (FIXED: Added checks for null/undefined body)
             const mtype = getContentType(ms.message);
-            const body = (mtype === 'conversation') ? ms.message.conversation : 
-                         (mtype === 'extendedTextMessage') ? ms.message.extendedTextMessage.text : 
-                         (mtype === 'imageMessage' || mtype === 'videoMessage') ? ms.message[mtype].caption : 
-                         (mtype === 'templateButtonReplyMessage') ? ms.message.templateButtonReplyMessage.selectedId :
-                         (mtype === 'buttonsResponseMessage') ? ms.message.buttonsResponseMessage.selectedButtonId :
-                         (mtype === 'listResponseMessage') ? ms.message.listResponseMessage.singleSelectReply.selectedRowId : '';
-
-            // Check if body exists before using startsWith
+            const body = (mtype === 'conversation') ? ms.message.conversation : (mtype === 'extendedTextMessage') ? ms.message.extendedTextMessage.text : (mtype === 'imageMessage' || mtype === 'videoMessage') ? ms.message[mtype].caption : '';
             const isCommand = body && body.startsWith(botPrefix);
             const cmdName = isCommand ? body.slice(botPrefix.length).trim().split(' ').shift().toLowerCase() : '';
             const args = body ? body.trim().split(/ +/).slice(1) : [];
             const q = args.join(' ');
 
-            // --- INTEGRATED TABLE COMMANDS (GHOST & KICK) ---
+            // --- INTEGRATED TABLE COMMANDS ---
             if (isCommand) {
                 if (cmdName === 'ghost') {
-                    if (!isSuperUser) return Gifted.sendMessage(from, { text: "❌ *NI MBAYA!* Owner only." }, { quoted: ms });
+                    if (!isSuperUser) return;
                     const status = args[0]?.toLowerCase();
                     if (status === 'on' || status === 'off') {
                         const isGhost = status === 'on';
                         await Gifted.sendPresenceUpdate(isGhost ? 'unavailable' : 'available', from);
-                        const ghostMsg = `\n╔════════════════════════╗\n  *『 𝐆𝐇𝐎𝐒𝐓 𝐌𝐎𝐃𝐄 𝐒𝐓𝐀𝐓𝐔𝐒 』*\n  \n  ⋄ 𝐒𝐭𝐚𝐭𝐮𝐬   : ${isGhost ? '𝐀𝐂𝐓𝐈𝐕𝐀𝐓𝐄𝐃 👻' : '𝐃𝐄𝐀𝐂𝐓𝐈𝐕𝐀𝐓𝐄𝐃 👁️'}\n  ⋄ 𝐕𝐢𝐬𝐢𝐛𝐢𝐥𝐢𝐭𝐲 : ${isGhost ? '𝐇𝐢𝐝𝐝𝐞𝐧' : '𝐏𝐮𝐛𝐥𝐢𝐜'}\n  ⋄ 𝐍𝐨𝐭𝐞     : 𝐍𝐈 𝐌𝐁𝐀𝐘𝐀 😅\n╚════════════════════════╝`;
-                        return Gifted.sendMessage(from, { text: ghostMsg }, { quoted: ms });
+                        return Gifted.sendMessage(from, { text: `\n╔════════════════════════╗\n  *『 𝐆𝐇𝐎𝐒𝐓 𝐌𝐎𝐃𝐄 』*\n  ⋄ 𝐒𝐭𝐚𝐭𝐮𝐬: ${isGhost ? '𝐎𝐍' : '𝐎𝐅𝐅'}\n╚════════════════════════╝` });
                     }
-                }
-
-                if (cmdName === 'kick') {
-                    if (!isGroup) return;
-                    const groupMetadata = await Gifted.groupMetadata(from);
-                    const admins = groupMetadata.participants.filter(p => p.admin).map(p => p.id);
-                    if (!admins.includes(sender) && !isSuperUser) return Gifted.sendMessage(from, { text: "❌ Admins only." }, { quoted: ms });
-                    let target = ms.message.extendedTextMessage?.contextInfo?.mentionedJid[0] || ms.message.extendedTextMessage?.contextInfo?.participant;
-                    if (!target) return Gifted.sendMessage(from, { text: "⚠️ Tag a user to kick." }, { quoted: ms });
-                    await Gifted.groupParticipantsUpdate(from, [target], "remove");
-                    const kickMsg = `\n╔════════════════════════╗\n  *『 𝐆𝐑𝐎𝐔𝐏 𝐔𝐏𝐃𝐀𝐓𝐄 』*\n  \n  ⋄ 𝐀𝐜𝐭𝐢𝐨𝐧   : 𝐔𝐬𝐞𝐫 𝐊𝐢𝐜𝐤𝐞𝐝 🚫\n  ⋄ 𝐒𝐭𝐚𝐭𝐮𝐬   : 𝐒𝐮𝐜𝐜𝐞𝐬𝐬𝐟𝐮𝐥\n  ⋄ 𝐏𝐨𝐰𝐞𝐫   : 𝐍𝐈 𝐌𝐁𝐀𝐘𝐀 😅\n╚════════════════════════╝`;
-                    return Gifted.sendMessage(from, { text: kickMsg }, { quoted: ms });
                 }
             }
 
             // --- PLUGIN COMMAND EXECUTION ---
-            if (isCommand && cmdName && evt.commands) {
-                const commandObj = evt.commands.find(c => c.pattern === cmdName || (c.alias && c.alias.includes(cmdName)));
+            if (isCommand && cmdName && global.commands) {
+                const commandObj = global.commands.find(c => c.pattern === cmdName || (c.alias && c.alias.includes(cmdName)));
                 if (commandObj && typeof commandObj.function === 'function') {
                     const conText = {
                         m: ms, Gifted, from, sender, isGroup, body, command: cmdName, 
@@ -212,38 +187,22 @@ async function startGifted() {
             }
         });
 
-        // --- 5. CONNECTION HANDLER ---
+        // --- 5. CONNECTION HANDLER (FIXES LOG ERRORS) ---
         Gifted.ev.on("connection.update", async (update) => {
             const { connection, lastDisconnect } = update;
             
             if (connection === "open") {
                 console.log("✅ Connection Online - NI MBAYA 😅");
                 reconnectAttempts = 0;
-                
-                if (startMess === 'true') {
-                    const totalCommands = evt.commands ? evt.commands.length : 0;
-                    const connectionMsg = `\n✨ *𝐗-𝐆𝐔𝐑𝐔 𝐌𝐃 𝐈𝐍𝐓𝐄𝐆𝐑𝐀𝐓𝐄𝐃* ✨\n\n╔════════════════════════╗\n  *『 𝐒𝐘𝐒𝐓𝐄𝐌 𝐈𝐍𝐅𝐎𝐑𝐌𝐀𝐓𝐈𝐎𝐍 』*\n  \n  ⋄ 𝐒𝐭𝐚𝐭𝐮𝐬   : 𝐍𝐈 𝐌𝐁𝐀𝐘𝐀 😅\n  ⋄ 𝐁𝐨𝐭 𝐍𝐚𝐦𝐞 : ${botName}\n  ⋄ 𝐂𝐦𝐝𝐬     : ${totalCommands}\n  ⋄ 𝐌𝐨𝐝𝐞     : ${botMode}\n╚════════════════════════╝`;
-
-                    await Gifted.sendMessage(Gifted.user.id, {
-                        text: connectionMsg,
-                        contextInfo: {
-                            externalAdReply: {
-                                title: "𝐗-𝐆𝐔𝐑𝐔 𝐌𝐃 𝐕𝟓 𝐒𝐔𝐂𝐂𝐄𝐒𝐒",
-                                body: "𝐍𝐈 𝐌𝐁𝐀𝐘𝐀 😅",
-                                thumbnailUrl: "https://files.catbox.moe/atpgij.jpg",
-                                sourceUrl: newsletterUrl, mediaType: 1, renderLargerThumbnail: true
-                            }
-                        }
-                    });
-                }
             }
 
             if (connection === "close") {
                 const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
                 const errorStr = lastDisconnect?.error?.toString() || "";
 
-                if (reason === DisconnectReason.badSession || errorStr.includes("Bad MAC")) {
-                    console.log("❌ CRITICAL: Bad MAC/Session Error. Clearing session...");
+                // Force clear session if Bad MAC occurs (prevents the loop in your logs)
+                if (reason === DisconnectReason.badSession || errorStr.includes("Bad MAC") || errorStr.includes("decryption")) {
+                    console.log("❌ SESSION CORRUPTED: Purging session files...");
                     if (fs.existsSync(sessionDir)) fs.rmSync(sessionDir, { recursive: true, force: true });
                     process.exit(1); 
                 } else {
@@ -253,16 +212,14 @@ async function startGifted() {
         });
 
     } catch (error) {
-        console.error('Fatal Socket error:', error);
         reconnectWithRetry();
     }
 }
 
-async function reconnectWithRetry() {
+function reconnectWithRetry() {
     if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) process.exit(1);
     reconnectAttempts++;
-    const delay = Math.min(RECONNECT_DELAY * Math.pow(2, reconnectAttempts - 1), 300000);
-    setTimeout(() => startGifted(), delay);
+    setTimeout(() => startGifted(), RECONNECT_DELAY);
 }
 
 startGifted();
