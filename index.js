@@ -18,12 +18,17 @@ const config = require('./config');
 const logger = pino({ level: "silent" });
 
 // --- 0. SAFETY MODULE LOADING ---
-// This prevents the bot from crashing if your 'gift' folder files are missing
 let gmdFunctions = {};
 try { gmdFunctions = require('./gift/gmdFunctions'); } catch (e) { console.log("⚠️ gift/gmdFunctions.js missing"); }
 
-let evt = { commands: [] };
-try { evt = require('./gift/events'); } catch (e) { console.log("⚠️ gift/events.js missing"); }
+// FIX: Initializing evt as a function so plugins can register commands
+const commands = [];
+const evt = (obj, func) => {
+    obj.function = func;
+    commands.push(obj);
+    return obj;
+};
+evt.commands = commands;
 
 let gmdStore;
 try { gmdStore = require('./gift/store'); } catch (e) { console.log("⚠️ gift/store.js missing"); }
@@ -105,7 +110,7 @@ async function startGifted() {
         Gifted = giftedConnect({
             version,
             logger: pino({ level: "silent" }),
-            browser: ['GIFTED-MD', "safari", "1.0.0"],
+            browser: ['X-GURU MD', "safari", "1.0.0"],
             auth: {
                 creds: state.creds,
                 keys: makeCacheableSignalKeyStore(state.keys, logger)
@@ -140,23 +145,56 @@ async function startGifted() {
             const isGroup = from.endsWith("@g.us");
             const botId = jidNormalizedUser(Gifted.user.id);
             const sender = isGroup ? (ms.key.participant || ms.key.remoteJid) : ms.key.remoteJid;
+            const isSuperUser = [ownerNumber, botId.split('@')[0]].some(v => sender.includes(v));
 
             // Automation: Auto-React
             if (autoReact === "true" && !ms.key.fromMe && typeof GiftedAutoReact === 'function') {
                 await GiftedAutoReact(emojis[Math.floor(Math.random() * emojis.length)], ms, Gifted);
             }
 
-            // Command Logic
-            const body = (getContentType(ms.message) === 'conversation') ? ms.message.conversation : (ms.message.extendedTextMessage) ? ms.message.extendedTextMessage.text : '';
+            // Message Parsing
+            const mtype = getContentType(ms.message);
+            const body = (mtype === 'conversation') ? ms.message.conversation : (mtype === 'extendedTextMessage') ? ms.message.extendedTextMessage.text : (mtype === 'imageMessage' || mtype === 'videoMessage') ? ms.message[mtype].caption : '';
             const isCommand = body.startsWith(botPrefix);
             const cmdName = isCommand ? body.slice(botPrefix.length).trim().split(' ').shift().toLowerCase() : '';
+            const args = body.trim().split(/ +/).slice(1);
+            const q = args.join(' ');
 
+            // --- DIRECT TABLE COMMANDS (GHOST & KICK) ---
+            if (isCommand) {
+                // Ghost Logic
+                if (cmdName === 'ghost') {
+                    if (!isSuperUser) return Gifted.sendMessage(from, { text: "❌ *NI MBAYA!* Owner only." }, { quoted: ms });
+                    const status = args[0]?.toLowerCase();
+                    if (status === 'on' || status === 'off') {
+                        const isGhost = status === 'on';
+                        await Gifted.sendPresenceUpdate(isGhost ? 'unavailable' : 'available', from);
+                        const ghostTable = `\n╔════════════════════════╗\n  *『 𝐆𝐇𝐎𝐒𝐓 𝐌𝐎𝐃𝐄 𝐒𝐓𝐀𝐓𝐔𝐒 』*\n  \n  ⋄ 𝐒𝐭𝐚𝐭𝐮𝐬   : ${isGhost ? '𝐀𝐂𝐓𝐈𝐕𝐀𝐓𝐄𝐃 👻' : '𝐃𝐄𝐀𝐂𝐓𝐈𝐕𝐀𝐓𝐄𝐃 👁️'}\n  ⋄ 𝐕𝐢𝐬𝐢𝐛𝐢𝐥𝐢𝐭𝐲 : ${isGhost ? '𝐇𝐢𝐝𝐝𝐞𝐧' : '𝐏𝐮𝐛𝐥𝐢𝐜'}\n  ⋄ 𝐍𝐨𝐭𝐞     : 𝐍𝐈 𝐌𝐁𝐀𝐘𝐀 😅\n╚════════════════════════╝`;
+                        return Gifted.sendMessage(from, { text: ghostTable }, { quoted: ms });
+                    }
+                }
+
+                // Kick Logic
+                if (cmdName === 'kick') {
+                    if (!isGroup) return;
+                    const groupMetadata = await Gifted.groupMetadata(from);
+                    const admins = groupMetadata.participants.filter(p => p.admin).map(p => p.id);
+                    if (!admins.includes(sender) && !isSuperUser) return Gifted.sendMessage(from, { text: "❌ Admin only." }, { quoted: ms });
+                    let target = ms.message.extendedTextMessage?.contextInfo?.mentionedJid[0] || ms.message.extendedTextMessage?.contextInfo?.participant;
+                    if (!target) return Gifted.sendMessage(from, { text: "⚠️ Tag a user." }, { quoted: ms });
+                    await Gifted.groupParticipantsUpdate(from, [target], "remove");
+                    const kickTable = `\n╔════════════════════════╗\n  *『 𝐆𝐑𝐎𝐔𝐏 𝐔𝐏𝐃𝐀𝐓𝐄 』*\n  \n  ⋄ 𝐀𝐜𝐭𝐢𝐨𝐧   : 𝐔𝐬𝐞𝐫 𝐊𝐢𝐜𝐤𝐞𝐝 🚫\n  ⋄ 𝐒𝐭𝐚𝐭𝐮𝐬   : 𝐒𝐮𝐜𝐜𝐞𝐬𝐬𝐟𝐮𝐥\n  ⋄ 𝐏𝐨𝐰𝐞𝐫   : 𝐍𝐈 𝐌𝐁𝐀𝐘𝐀 😅\n╚════════════════════════╝`;
+                    return Gifted.sendMessage(from, { text: kickTable }, { quoted: ms });
+                }
+            }
+
+            // Command Logic for Plugins
             if (isCommand && cmdName && evt.commands) {
                 const commandObj = evt.commands.find(c => c.pattern === cmdName || (c.alias && c.alias.includes(cmdName)));
                 if (commandObj && typeof commandObj.function === 'function') {
                     const conText = {
                         m: ms, Gifted, from, sender, isGroup, body, command: cmdName, 
-                        args: body.trim().split(/ +/).slice(1),
+                        args: args, q: q, isSuperUser,
                         reply: (text) => Gifted.sendMessage(from, { text }, { quoted: ms }),
                         react: (emoji) => Gifted.sendMessage(from, { react: { key: ms.key, text: emoji } }),
                         getMediaBuffer, gmdBuffer, gmdJson, uploadToCatbox, GiftedTechApi
@@ -171,7 +209,7 @@ async function startGifted() {
             const { connection, lastDisconnect } = update;
             
             if (connection === "open") {
-                console.log("✅ Connection Online");
+                console.log("✅ Connection Online - NI MBAYA 😅");
                 reconnectAttempts = 0;
                 
                 if (startMess === 'true') {
@@ -207,6 +245,7 @@ async function startGifted() {
             if (connection === "close") {
                 const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
                 if (reason === DisconnectReason.badSession || reason === DisconnectReason.loggedOut) {
+                    console.log("❌ CRITICAL: Session error. Please re-pair.");
                     process.exit(1);
                 } else {
                     reconnectWithRetry();
@@ -226,5 +265,8 @@ async function reconnectWithRetry() {
     const delay = Math.min(RECONNECT_DELAY * Math.pow(2, reconnectAttempts - 1), 300000);
     setTimeout(() => startGifted(), delay);
 }
+
+// Exporting evt for plugins
+module.exports = { evt };
 
 startGifted();
